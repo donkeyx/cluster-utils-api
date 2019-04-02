@@ -1,9 +1,12 @@
-# docker_cluster-utils-api
-
-Sample docker image to test docker deployments
+# cluster-utils-api
 
 ## description
-Simple container for testing deployments, which returns env vars as json over port 8080
+
+Sample docker image to test docker deployments in your clusters or locally. Basically, a hello world with some useful info.
+
+The container will run a simple node express service to show the environment variables available in the container namespace. Container port is 8080 but you can bind to 80 or whatever you like.
+
+Default route is json response with environment variables, with more to come...
 
 ## Usage
 
