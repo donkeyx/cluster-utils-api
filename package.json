@@ -1,19 +1,13 @@
 {
-  "name": "docker_cluster-utils-api",
+  "name": "docker_web_app",
   "version": "1.0.0",
-  "description": "basic api for testing",
-  "main": "app.js",
+  "description": "Node.js on Docker",
+  "author": "David Binney <donkeysoft@gmail.com>",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/donkeyx/docker_cluster-utils-api.git"
-  },
-  "author": "David Binney",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/donkeyx/docker_cluster-utils-api/issues"
-  },
-  "homepage": "https://github.com/donkeyx/docker_cluster-utils-api#readme"
+  "dependencies": {
+    "express": "^4.16.1"
+  }
 }

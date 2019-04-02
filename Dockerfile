@@ -7,8 +7,12 @@ ENV LC_ALL en_AU.UTF-8
 ENV LC_CTYPE=en_AU.UTF-8
 ENV TZ="Australia/Adelaide"
 
-COPY .app.js /app/app.js
+WORKDIR /usr/src/app
 
-ENTRYPOINT ["node", "api.js"]
+COPY package*.json server.js ./
 
-EXPOSE 80
+RUN npm ci
+
+ENTRYPOINT ["npm", "start"]
+
+EXPOSE 8080
