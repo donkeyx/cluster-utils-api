@@ -1,2 +1,3 @@
 # docker_cluster-utils-api
-Cluster util api with a basic service on port 80
+
+Simple container which returns env vars as json for testing cluster deployments over port 8080
