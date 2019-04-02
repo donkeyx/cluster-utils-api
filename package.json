@@ -1,0 +1,19 @@
+{
+  "name": "docker_cluster-utils-api",
+  "version": "1.0.0",
+  "description": "basic api for testing",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/donkeyx/docker_cluster-utils-api.git"
+  },
+  "author": "David Binney",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/donkeyx/docker_cluster-utils-api/issues"
+  },
+  "homepage": "https://github.com/donkeyx/docker_cluster-utils-api#readme"
+}
