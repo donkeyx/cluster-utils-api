@@ -7,13 +7,15 @@ Simple container for testing deployments, which returns env vars as json over po
 
 ## Usage
 
-### build and push
+### Build image:
 
+You can build the image locally like this and then push to your own repo for testing
+
+```bash
 docker build -t donkeyx/cluster-utils-api .
+```
 
-You can now push your new image to your own repo or wherever you like
-
-### Start your image:
+### Start container:
 docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
 
 ```bash
