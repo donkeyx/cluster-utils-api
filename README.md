@@ -17,19 +17,26 @@ You can now push your new image to your own repo or wherever you like
 docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
 
 ```bash
-❯ curl localhost:8080 | jq "."
+❯ http localhost:8080
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 4790
+Content-Type: application/json; charset=utf-8
+Date: Tue, 02 Apr 2019 08:49:22 GMT
+ETag: W/"12b6-OdCM/Gv6+/5YnNIz25ceGper7Zc"
+X-Powered-By: Express
+
 {
-  "npm_config_cache_lock_stale": "60000",
-  "npm_config_ham_it_up": "",
-  "npm_config_legacy_bundling": "",
-  "npm_config_sign_git_tag": "",
-  "LANGUAGE": "en_AU.UTF-8",
-  "npm_config_user_agent": "npm/6.7.0 node/v11.13.0 linux x64",
-  "npm_config_always_auth": "",
-  "NODE_VERSION": "11.13.0",
-  "npm_config_bin_links": "true",
-  "npm_config_key": "",
-  "HOSTNAME": "efa8d452f81e",
-  "YARN_VERSION": "1.15.2"
+    "HOME": "/root",
+    "HOSTNAME": "377ad6708651",
+    "INIT_CWD": "/usr/src/app",
+    "LANG": "en_AU.UTF-8",
+    "LANGUAGE": "en_AU.UTF-8",
+    "LC_ALL": "en_AU.UTF-8",
+    "LC_CTYPE": "en_AU.UTF-8",
+    "NODE": "/usr/local/bin/node",
+    "NODE_VERSION": "11.13.0",
+    "PATH": "/usr/local/lib/node_modules/npm/node_modules/npm-lifecycle/node-gyp-bin:/usr/src/app/node_modules/.bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "PWD": "/usr/src/app"
 }
 ```
