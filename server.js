@@ -2,6 +2,7 @@
 
 const express = require('express');
 const os = require('os');
+const morgan = require('morgan')
 
 // Constants
 const PORT = 80;
@@ -19,9 +20,13 @@ const INFO = {
 }
 
 
+
+
 // some basic endpoints to test readyness and zpages
 
 const app = express();
+app.use(morgan('combined'));
+
 app.get('/', (req, res) => {
     res.send(INFO);
 });
