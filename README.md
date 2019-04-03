@@ -15,7 +15,14 @@ Default route is json response with environment variables, with more to come...
 You can build the image locally like this and then push to your own repo for testing
 
 ```bash
-docker build -t donkeyx/cluster-utils-api .
+# pull image
+docker pull donkeyx/cluster-utils-api
+
+# tag
+docker tag donkeyx/cluster-utils-api your-repo-url/container-name:latest
+
+# push
+docker push your-repo-url/container-name:latest
 ```
 
 ### Start container:
