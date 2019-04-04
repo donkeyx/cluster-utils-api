@@ -2,12 +2,10 @@
 
 const express = require('express');
 const os = require('os');
-const morgan = require('morgan')
 
 // Constants
 const PORT = 80;
 const HOST = '0.0.0.0';
-
 const INFO = {
     version: 'v1.1',
     endpoints: [
@@ -18,32 +16,33 @@ const INFO = {
         '/readyness_delay'
     ]
 }
-
+const stripUri = '/v1/connect';
 
 
 
 // some basic endpoints to test readyness and zpages
 
 const app = express();
-app.use(morgan('combined'));
+app.use(require('express-bunyan-logger')());
 
-app.get('/', (req, res) => {
+
+app.get("/", (req, res) => {
     res.send(INFO);
 });
 
-app.get('/infoz', (req, res) => {
+app.get('*/infoz', (req, res) => {
     res.send(INFO);
 });
 
-app.get('/ping', (req, res) => {
+app.get('*/ping', (req, res) => {
     res.send({ ping: 'pong' });
 });
 
-app.get('/healthz', (req, res) => {
+app.get('*/healthz', (req, res) => {
     res.send({ status: 'UP' });
 });
 
-app.get('/statsz', (req, res) => {
+app.get('*/statsz', (req, res) => {
 
     res.send({
         cpu: os.cpus(),
