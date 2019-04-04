@@ -2,6 +2,7 @@
 
 const express = require('express');
 const os = require('os');
+const url = require('url');
 
 // Constants
 const PORT = 80;
@@ -16,33 +17,38 @@ const INFO = {
         '/readyness_delay'
     ]
 }
-const stripUri = '/v1/connect';
-
-
 
 // some basic endpoints to test readyness and zpages
-
 const app = express();
 app.use(require('express-bunyan-logger')());
 
+// simple middleware to clean the url crap i.e /something/sddssdf/healthz to /healthz
+app.use(function (req, res, next) {
+    // mutate url to strip path
+    let cleanUrl = "/" + /.*\/(.*)/.exec(req.url)[1];
+    req.log.info({ routing: "middleware", source_url: req.url, dest_url: cleanUrl });
+    req.url = cleanUrl;
+
+    next();
+});
 
 app.get("/", (req, res) => {
     res.send(INFO);
 });
 
-app.get('*/infoz', (req, res) => {
+app.get('/infoz', (req, res) => {
     res.send(INFO);
 });
 
-app.get('*/ping', (req, res) => {
+app.get('/ping', (req, res) => {
     res.send({ ping: 'pong' });
 });
 
-app.get('*/healthz', (req, res) => {
+app.get('/healthz', (req, res) => {
     res.send({ status: 'UP' });
 });
 
-app.get('*/statsz', (req, res) => {
+app.get('/statsz', (req, res) => {
 
     res.send({
         cpu: os.cpus(),
