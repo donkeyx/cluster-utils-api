@@ -24,17 +24,20 @@ app.use(require('express-bunyan-logger')());
 // simple middleware to clean the url crap i.e /something/sddssdf/healthz to /healthz
 app.use(function (req, res, next) {
 
-    let cleanUrl = req.url;
+    // skip root path
+    if (req.url !== "/") {
+        let cleanUrl = req.url;
 
-    if (cleanUrl.endsWith('/')) {
-        console.log("stripping trailing slash");
-        cleanUrl = cleanUrl.replace(/\/$/, "")
+        if (cleanUrl.endsWith('/')) {
+            console.log("stripping trailing slash");
+            cleanUrl = cleanUrl.replace(/\/$/, "")
+        }
+
+        // mutate to strip off prefix junk i.e /v1/test/healthz
+        cleanUrl = "/" + /.*\/(.*)/.exec(cleanUrl)[1];
+        req.log.info({ routing: "middleware", source_url: req.url, dest_url: cleanUrl });
+        req.url = cleanUrl;
     }
-
-    // mutate to strip off prefix junk i.e /v1/test/healthz
-    cleanUrl = "/" + /.*\/(.*)/.exec(cleanUrl)[1];
-    req.log.info({ routing: "middleware", source_url: req.url, dest_url: cleanUrl });
-    req.url = cleanUrl;
 
     next();
 });
