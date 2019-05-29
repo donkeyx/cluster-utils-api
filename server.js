@@ -2,7 +2,6 @@
 
 const express = require('express');
 const os = require('os');
-const url = require('url');
 
 // Constants
 const PORT = 80;
@@ -24,8 +23,16 @@ app.use(require('express-bunyan-logger')());
 
 // simple middleware to clean the url crap i.e /something/sddssdf/healthz to /healthz
 app.use(function (req, res, next) {
-    // mutate url to strip path
-    let cleanUrl = "/" + /.*\/(.*)/.exec(req.url)[1];
+
+    let cleanUrl = req.url;
+
+    if (cleanUrl.endsWith('/')) {
+        console.log("stripping trailing slash");
+        cleanUrl = cleanUrl.replace(/\/$/, "")
+    }
+
+    // mutate to strip off prefix junk i.e /v1/test/healthz
+    cleanUrl = "/" + /.*\/(.*)/.exec(cleanUrl)[1];
     req.log.info({ routing: "middleware", source_url: req.url, dest_url: cleanUrl });
     req.url = cleanUrl;
 
@@ -69,6 +76,10 @@ app.get('/readyness_delay', (req, res) => {
 
 });
 
+// force dodgy routes back to root
+app.get('*', function(req, res) {
+    res.redirect(302,'/infoz');
+});
 
 app.listen(PORT, HOST);
 console.log(`Running on http://${HOST}:${PORT}`);

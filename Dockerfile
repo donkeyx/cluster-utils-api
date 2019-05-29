@@ -9,10 +9,10 @@ ENV LANG en_AU.UTF-8 \
 
 WORKDIR /usr/src/app
 
-COPY package*.json server.js ./
-
+COPY package*.json ./
 RUN npm ci
 
-ENTRYPOINT ["npm", "start"]
+COPY server.js ./
 
+ENTRYPOINT ["npm", "start"]
 EXPOSE 8080
