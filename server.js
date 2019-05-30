@@ -79,9 +79,10 @@ app.get('/readyness_delay', (req, res) => {
 
 });
 
-// force dodgy routes back to root
+// force dodgy routes back to ./infoz
 app.get('*', function(req, res) {
-    res.redirect(302, req.url + '/infoz');
+    let redirectPath = (req.originalUrl + '/infoz').replace('//', '/');
+    res.redirect(302, redirectPath);
 });
 
 app.listen(PORT, HOST);
