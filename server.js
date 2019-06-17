@@ -10,7 +10,7 @@ const INFO = {
     version: 'v1.1',
     endpoints: [
         '/statsz',
-        'healthz',
+        '/healthz',
         '/ping',
         '/envz',
         '/readyness_delay'
