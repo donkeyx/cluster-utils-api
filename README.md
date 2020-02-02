@@ -31,6 +31,23 @@ docker push your-repo-url/container-name:latest
 docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
 ```
 
+### run image in k8 cluster:
+
+You can run the pod in your cluster with the commands below, this will start the container
+in the default namespace and timeout in 30mins.
+```bash
+# apply pod config with default 30min timeout
+kubectl -n default \
+    apply -f https://raw.githubusercontent.com/donkeyx/docker_cluster-utils/master/k8s-cluter-utils.yml
+
+# list the pod
+$ kubectl get pods -n default
+NAME            READY   STATUS    RESTARTS   AGE
+cluster-utils   1/1     Running   0          2m18s
+```
+
+### curling apis in this container:
+
 curling your running container
 
 ```bash
