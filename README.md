@@ -33,18 +33,49 @@ docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
 
 ### run image in k8 cluster:
 
-You can run the pod in your cluster with the commands below, this will start the container
-in the default namespace and timeout in 30mins.
+You can run the pod in your cluster with the commands below. This will start a deployment and
+service called ```cluster-utils-api``` but limited to cluster ip. If you want to expose with
+type loadbalancer you can do it yourself, I don't want you to get a bill from this.
+
+apply the manifest to create the pod and service
 ```bash
 # apply pod config with default 30min timeout
 kubectl -n default \
-    apply -f https://raw.githubusercontent.com/donkeyx/docker_cluster-utils/master/k8s-cluter-utils.yml
-
-# list the pod
-$ kubectl get pods -n default
-NAME            READY   STATUS    RESTARTS   AGE
-cluster-utils   1/1     Running   0          2m18s
+    apply -f https://raw.githubusercontent.com/donkeyx/docker_cluster-utils-api/master/k8s-cluster-util-apis.yml
 ```
+
+list the created pod and service.
+```bash
+# list the pod and service which shows
+$ kubectl get pods,svc -n default
+NAME                                     READY   STATUS    RESTARTS   AGE
+pod/cluster-utils-api-6c5999df88-wssg6   1/1     Running   0          14m
+
+NAME                        TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+service/cluster-utils-api   ClusterIP   10.114.3.0   <none>        80/TCP    14m
+service/kubernetes          ClusterIP   10.114.0.1   <none>        443/TCP   99d
+...
+```
+
+Now you can use port forwarding to curl your apis inside the cluster
+```bash
+# in one windows forward the ports to the service
+$ kubectl -n default port-forward svc/cluster-utils-api 8080:80
+
+# then curl the service -> pod
+$ curl -sS  localhost:8080 | jq
+{
+  "version": "v1.1",
+  "endpoints": [
+    "/statsz",
+    "/healthz",
+    "/ping",
+    "/envz",
+    "/readyness_delay"
+  ]
+}
+```
+
 
 ### curling apis in this container:
 
