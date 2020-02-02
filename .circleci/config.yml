@@ -1,0 +1,59 @@
+version: 2.0
+
+workflows:
+  version: 2
+
+  cluster-utils-apis-workflow:
+    jobs:
+      - build
+      # - deploy:
+      #     requires:
+      #       - setup
+
+jobs:
+  build:
+    machine:
+      image: ubuntu-1604:201903-01
+      # docker_layer_caching: true
+    environment:
+      build_container: "build_container"
+      dockerhub_repo: "donkeyx/cluster-utils-apis"
+      github_repo: "docker.pkg.github.com/donkeyx/docker_cluster-utils-api/cluster-utils-apis"
+
+    steps:
+      - checkout
+      - run:
+          name: container build
+          command: |
+            echo "building container: $build_container"
+            docker build -t $build_container .
+
+      - run:
+          name: tag and push dockerhub
+          command: |
+            docker tag $build_container $dockerhub_repo:latest
+            docker tag $build_container $dockerhub_repo:circleci-${CIRCLE_SHA1}
+
+            docker login -u $DOCKERHUB_USER -p $DOCKERHUB_PASS
+            docker push $dockerhub_repo:circleci-${CIRCLE_SHA1}
+            docker push $dockerhub_repo:latest
+
+      - run:
+          name: tag and push github
+          command: |
+            docker login docker.pkg.github.com --username $GITHUB_USER --password $GITHUB_PASS
+
+            docker tag $build_container $github_repo:latest
+            docker push $github_repo:latest
+
+            docker tag $build_container $github_repo:circleci-${CIRCLE_SHA1}
+            docker push $github_repo:circleci-${CIRCLE_SHA1}
+
+#  # Step 1: Authenticate
+# $ docker login docker.pkg.github.com --username donkeyx
+
+# # Step 2: Tag
+# $ docker tag IMAGE_ID docker.pkg.github.com/donkeyx/docker_cluster-utils/IMAGE_NAME:VERSION
+
+# # Step 3: Publish
+# $ docker push docker.pkg.github.com/donkeyx/docker_cluster-utils/IMAGE_NAME:VERSION
