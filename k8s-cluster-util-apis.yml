@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cluster-util-apis
+  labels:
+    purpose: testing
+spec:
+  containers:
+    - name: cluseter-util-apis
+      image: donkeyx/cluster-util-apis:latest
