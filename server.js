@@ -1,7 +1,9 @@
 'use strict';
 
-const express = require('express');
 const os = require('os');
+const app = express();
+const express = require('express');
+
 
 // Constants
 const PORT = process.env.PORT || 80;
@@ -18,10 +20,10 @@ const INFO = {
 }
 
 // some basic endpoints to test readyness and zpages
-const app = express();
-app.use(require('express-bunyan-logger')());
+
 
 // simple middleware to clean the url crap i.e /something/sddssdf/healthz to /healthz
+app.use(require('express-bunyan-logger')());
 app.use(function (req, res, next) {
 
     // skip root path
