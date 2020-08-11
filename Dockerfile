@@ -3,7 +3,8 @@ FROM node:alpine
 
 RUN apk add --no-cache curl
 
-ENV LANG en_AU.UTF-8 \
+ENV PORT 80 \
+    LANG en_AU.UTF-8 \
     LANGUAGE en_AU.UTF-8 \
     LC_ALL en_AU.UTF-8 \
     LC_CTYPE=en_AU.UTF-8 \
