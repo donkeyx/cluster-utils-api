@@ -1,8 +1,8 @@
 'use strict';
 
 const os = require('os');
-const app = express();
 const express = require('express');
+const app = express();
 
 
 // Constants
@@ -82,7 +82,7 @@ app.get('/readyness_delay', (req, res) => {
 });
 
 // force dodgy routes back to ./infoz
-app.get('*', function(req, res) {
+app.get('*', function (req, res) {
     let redirectPath = (req.originalUrl + '/infoz').replace('//', '/');
     res.redirect(302, redirectPath);
 });
