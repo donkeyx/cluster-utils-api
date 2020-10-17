@@ -2,7 +2,11 @@
 
 const os = require('os');
 const express = require('express');
-const app = express();
+const pino = require('pino');
+const expressPino = require('express-pino-logger');
+
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+const expressLogger = expressPino({ logger });
 
 
 // Constants
@@ -23,10 +27,12 @@ const INFO = {
 }
 
 // some basic endpoints to test readyness and zpages
+const app = express();
+
+app.use(expressLogger);
 
 
 // simple middleware to clean the url crap i.e /something/sddssdf/healthz to /healthz
-app.use(require('express-bunyan-logger')());
 app.use(function (req, res, next) {
 
     // skip root path
