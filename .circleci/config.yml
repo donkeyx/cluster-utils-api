@@ -1,6 +1,24 @@
 version: 2.0
 
 jobs:
+  build-test:
+    machine:
+      image: ubuntu-1604:201903-01
+
+    steps:
+      - checkout
+      - run:
+          name: docker-build
+          command: |
+            docker build -t build_container .;
+            mkdir tmp;
+            docker save --output tmp/build_container.tar build_container;
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./tmp
+
   docker-build:
     machine:
       image: ubuntu-1604:201903-01
@@ -16,17 +34,19 @@ jobs:
           at: .
 
       - run:
-          name: container build
-          command: make docker-build
+          name: container load
+          command: |
+            ls -laR;
+            docker load < tmp/build_container.tar;
 
       - run:
           name: tag and push dockerhub
           command: |
             git_hash=$(echo $CIRCLE_SHA1 | cut -c1-8)
             echo $git_hash
-            docker tag tcp-wait $dockerhub_repo:latest
-            # docker tag tcp-wait $dockerhub_repo:${CIRCLE_TAG}-${git_hash}
-            docker tag tcp-wait $dockerhub_repo:${CIRCLE_TAG}
+            docker tag build_container $dockerhub_repo:latest
+            # docker tag build_container $dockerhub_repo:${CIRCLE_TAG}-${git_hash}
+            docker tag build_container $dockerhub_repo:${CIRCLE_TAG}
 
             echo "$DOCKERHUB_PASS" | docker login --username $DOCKERHUB_USER --password-stdin
             # docker push $dockerhub_repo:${CIRCLE_TAG}-${git_hash}
@@ -37,12 +57,12 @@ workflows:
   version: 2
   build-deploy:
     jobs:
-      # - build-test:
-      #     filters:
-      #       branches:
-      #         only: /.*/
-      #       tags:
-      #         only: /.*/
+      - build-test:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
       # - package:
       #     requires:
       #       - build-test
