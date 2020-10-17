@@ -6,7 +6,10 @@ const app = express();
 
 
 // Constants
-const PORT = process.env.PORT || 80;
+console.log("the passed port:", process.env.PORT)
+console.log(process.env.PORT);
+const PORT = process.env.PORT || 8080;
+console.log("port after ", PORT)
 const HOST = '0.0.0.0';
 const INFO = {
     version: 'v1.1',
