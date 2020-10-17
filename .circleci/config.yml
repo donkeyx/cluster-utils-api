@@ -1,17 +1,7 @@
 version: 2.0
 
-workflows:
-  version: 2
-
-  cluster-utils-apis-workflow:
-    jobs:
-      - build
-      # - deploy:
-      #     requires:
-      #       - setup
-
 jobs:
-  build:
+  docker-build:
     machine:
       image: ubuntu-1604:201903-01
       # docker_layer_caching: true
@@ -19,41 +9,53 @@ jobs:
       build_container: "build_container"
       dockerhub_repo: "donkeyx/cluster-utils-api"
       github_repo: "docker.pkg.github.com/donkeyx/docker_cluster-utils-api/cluster-utils-api"
+      # git_hash: $(echo $CIRCLE_SHA1 | cut -c1-5)
 
     steps:
-      - checkout
+      - attach_workspace:
+          at: .
+
       - run:
           name: container build
-          command: |
-            echo "building container: $build_container"
-            docker build -t $build_container .
+          command: make docker-build
 
       - run:
           name: tag and push dockerhub
           command: |
-            docker tag $build_container $dockerhub_repo:latest
-            docker tag $build_container $dockerhub_repo:circleci-${CIRCLE_SHA1}
+            git_hash=$(echo $CIRCLE_SHA1 | cut -c1-8)
+            echo $git_hash
+            docker tag tcp-wait $dockerhub_repo:latest
+            # docker tag tcp-wait $dockerhub_repo:${CIRCLE_TAG}-${git_hash}
+            docker tag tcp-wait $dockerhub_repo:${CIRCLE_TAG}
 
             echo "$DOCKERHUB_PASS" | docker login --username $DOCKERHUB_USER --password-stdin
-            docker push $dockerhub_repo:circleci-${CIRCLE_SHA1}
+            # docker push $dockerhub_repo:${CIRCLE_TAG}-${git_hash}
+            docker push $dockerhub_repo:${CIRCLE_TAG}
             docker push $dockerhub_repo:latest
 
-      - run:
-          name: tag and push github
-          command: |
-            echo $GITHUB_PASS | docker login docker.pkg.github.com --username $GITHUB_USER --password-stdin
-
-            docker tag $build_container $github_repo:latest
-            docker push $github_repo:latest
-
-            docker tag $build_container $github_repo:circleci-${CIRCLE_SHA1}
-            docker push $github_repo:circleci-${CIRCLE_SHA1}
-
-#  # Step 1: Authenticate
-# $ docker login docker.pkg.github.com --username donkeyx
-
-# # Step 2: Tag
-# $ docker tag IMAGE_ID docker.pkg.github.com/donkeyx/docker_cluster-utils/IMAGE_NAME:VERSION
-
-# # Step 3: Publish
-# $ docker push docker.pkg.github.com/donkeyx/docker_cluster-utils/IMAGE_NAME:VERSION
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      # - build-test:
+      #     filters:
+      #       branches:
+      #         only: /.*/
+      #       tags:
+      #         only: /.*/
+      # - package:
+      #     requires:
+      #       - build-test
+      #     filters:
+      #       branches:
+      #         ignore: /.*/
+      #       tags:
+      #         only: /^v\d+\.\d+\.\d+$/
+      - docker-build:
+          # requires:
+          #   - build-test
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
