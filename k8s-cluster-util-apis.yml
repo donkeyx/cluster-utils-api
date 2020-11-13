@@ -25,7 +25,7 @@ spec:
             httpGet:
               path: /healthz
               port: 8080
-            periodSeconds: 5
+            periodSeconds: 10
           startupProbe:
             httpGet:
               path: /healthz
@@ -39,6 +39,15 @@ spec:
             limits:
               cpu: "0.1"
               memory: 100Mi
+      initContainers:
+        - name: init-dns
+          image: curlimages/curl
+          command:
+            [
+              "sh",
+              "-c",
+              "until curl -fsS https://google.com >> /dev/null; do sleep 2 ; done ;",
+            ]
       imagePullSecrets:
         - name: dockerhub-reg-cred
 
