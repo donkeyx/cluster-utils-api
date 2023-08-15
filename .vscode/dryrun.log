@@ -1,0 +1,23 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory `/Users/h445854/mywork/personal/tcp-wait'
+go clean
+find ./bin/ -type f | grep -v keep | xargs rm
+go get
+ 
+mkdir -p tmp/test-coverage
+go test -coverprofile=tmp/test-coverage/coverage.out
+go tool cover -html=tmp/test-coverage/coverage.out -o ./tmp/test-coverage/coverage.html
+ 
+version is 'master'
+ 
+build_date is 'Fri May 27 16:20:39 ACST 2022'
+ 
+ld-flags is go build -ldflags "-w -s -X main.Version='master' -X main.GitHash='89611ca'"
+ 
+CGO_ENABLED=0 go build -ldflags "-w -s -X main.Version='master' -X main.GitHash='89611ca'" -o bin/tcp-wait -v
+CGO_ENABLED=0 GOARCH=386   GOOS=windows  go build -ldflags "-w -s -X main.Version='master' -X main.GitHash='89611ca'" -o bin/tcp-wait.windows.amd64 -v
+CGO_ENABLED=0 GOARCH=amd64 GOOS=linux  go build -ldflags "-w -s -X main.Version='master' -X main.GitHash='89611ca'" -o bin/tcp-wait.linux.amd64 -v
+CGO_ENABLED=0 GOARCH=amd64 GOOS=darwin  go build -ldflags "-w -s -X main.Version='master' -X main.GitHash='89611ca'" -o bin/tcp-wait.darwin.amd64 -v
+ 
+make: Leaving directory `/Users/h445854/mywork/personal/tcp-wait'
+ 
