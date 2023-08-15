@@ -8,6 +8,8 @@ The container will run a simple node express service to show the environment var
 
 Default route is json response with environment variables, with more to come...
 
+dockerhub: https://hub.docker.com/repository/docker/donkeyx/cluster-utils-api
+
 ## Usage
 
 ### Build image:
@@ -41,7 +43,7 @@ apply the manifest to create the pod and service
 ```bash
 # apply pod config with default 30min timeout
 kubectl -n default \
-    apply -f https://raw.githubusercontent.com/donkeyx/docker_cluster-utils-api/master/k8s-cluster-util-apis.yml
+    apply -f https://raw.githubusercontent.com/donkeyx/cluster-utils-api/master/k8s-cluster-util-apis.yml
 ```
 
 list the created pod and service.
