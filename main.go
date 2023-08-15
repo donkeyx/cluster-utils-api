@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"sync"
-	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -67,4 +67,3 @@ func headersHandler(c *gin.Context) {
 
 	c.Data(http.StatusOK, "application/json", headersJSON)
 }
-
