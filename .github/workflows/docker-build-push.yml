@@ -2,21 +2,14 @@ name: Docker build and push
 
 on:
   push:
-    branches: [$default-branch, "release/*"]
-    tags: ["v*.*.*"]
-  pull_request:
-    branches: [$default-branch]
-
-env:
-  IMAGE_NAME: ${{ github.repository }}
+    tags:
+      - "v*"
 
 jobs:
   build:
-    environment: deployment # this gets the secrets for deployments
-
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
       id-token: write
 
@@ -24,84 +17,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Capture build vars
-        id: vars
-        shell: bash
-        run: |
-          git_ref=$(echo ${GITHUB_REF#refs/*/}| tr "/" "-" )
-          hash=${GITHUB_SHA::6}
-
-          if [ "$GITHUB_REF_TYPE" == "tag" ]; then
-            echo "processing tag"
-            docker_tag="$git_ref"
-
-            echo "docker tag string latest"
-            latest_tag=" -t \donkeyx/cu-api:latest"
-
-          fi
-
-          if [ "$GITHUB_REF_TYPE" == "branch" ]; then
-            echo "processing branch"
-
-            if [ "$git_ref" == "master" ]; then
-              echo "match latest"
-              docker_tag=latest
-            fi
-
-            docker_tag="${git_ref}"
-          fi
-
-          echo "branch: $git_ref"
-          echo "hash: $hash"
-          echo "dockertag: $docker_tag"
-
-          echo "::set-output name=git_ref::$git_ref"
-          echo "::set-output name=sha_short::$hash"
-          echo "::set-output name=docker_tag::$docker_tag"
-          echo "::set-output name=latest_tag::$latest_tag"
-
-      # for multi architecture builds arm/x86
-      - name: Setup qumu runner
-        uses: docker/setup-qemu-action@v1
-
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v1
-
-      # ################################
-      # push docker images (dockerhub/github)
-      # ################################
-      - name: Log into registry (dockerhub)
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USER }}
-          password: ${{ secrets.DOCKERHUB_PASS }}
-          logout: true
+          images: |
+            ghcr.io/donkeyx/cluster-utils-api
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}
+            type=semver,pattern={{major}}.{{minor}}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
 
-      - name: Build and push docker image (dockerhub)
-        run: |
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-          docker buildx build \
-          --platform linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
-          -t "donkeyx/cluster-utils-api:${{ steps.vars.outputs.docker_tag }}" \
-          ${{ steps.vars.outputs.latest_tag }} \
-          --push \
-          .
-
-      - name: Log into registry (github)
-        if: github.event_name != 'pull_request'
+      - name: Login to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          logout: true
 
-      - name: Build and push docker image (github)
-        run: |
-          docker buildx build \
-          --platform linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
-          -t "ghcr.io/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.docker_tag }}" \
-          ${{ steps.vars.outputs.latest_tag }} \
-          --push \
-          .
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
