@@ -36,20 +36,12 @@ spec:
             - name: PORT
               value: "8080"
           resources:
-            limits:
+            requests:
               cpu: "0.1"
+              memory: "50Mi"
+            limits:
+              cpu: "0.5"
               memory: 100Mi
-      initContainers:
-        - name: init-dns
-          image: curlimages/curl
-          command:
-            [
-              "sh",
-              "-c",
-              "until curl -fsS https://google.com >> /dev/null; do sleep 2 ; done ;",
-            ]
-      imagePullSecrets:
-        - name: dockerhub-reg-cred
 
 ---
 apiVersion: v1

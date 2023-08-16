@@ -27,8 +27,8 @@ func main() {
 	router.GET("/healthz", healthHandler)
 	router.GET("/ready", readyHandler)
 	router.GET("/readyz", readyHandler)
+
 	router.GET("/headers", headersHandler)
-	router.GET("/headersz", headersHandler)
 
 	// Start the server
 	port := "8080"
