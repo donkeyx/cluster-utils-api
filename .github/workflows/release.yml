@@ -42,13 +42,3 @@ jobs:
             bin/cu-api.darwin.amd64
             bin/cu-api.linux.amd64
             bin/cu-api.windows.amd64
-        # env:
-        #   GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-
-      # - name: Release to https://pkg.go.dev/
-      #   if: startsWith(github.ref, 'refs/tags/')
-      #   run: |
-      #     release_tag=$(echo ${GITHUB_REF#refs/*/})
-      #     echo "using build tag to publish :$release_tag"
-
-      #     GOPROXY=proxy.golang.org go list -m github.com/donkeyx/cluster-utils-api@${release_tag}
