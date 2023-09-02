@@ -2,17 +2,17 @@ package main
 
 import (
 	"net/http"
-	"time"
 
-	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-func setupRouter(logger *zap.Logger) *gin.Engine {
+func setupRouter(logger *zap.SugaredLogger) *gin.Engine {
 
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
-	r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
+
+	r.Use(loggingMiddleware(logger))
 
 	r.GET("/", helloHandler)
 	r.GET("/health", healthHandler)
@@ -25,6 +25,7 @@ func setupRouter(logger *zap.Logger) *gin.Engine {
 		envVariables := getEnvironmentVariables()
 		c.JSON(http.StatusOK, envVariables)
 	})
+	r.GET("/debug", debugHandler)
 
 	return r
 }
