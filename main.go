@@ -1,72 +1,53 @@
 package main
 
 import (
-	"encoding/json"
-	"net/http"
+	"fmt"
+	"math/rand"
 	"sync"
+	"time"
 
-	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	isReady  bool
-	readyMu  sync.RWMutex
-	healthMu sync.RWMutex
+	isReady       bool
+	securityToken string
+	readyMu       sync.RWMutex
+	healthMu      sync.RWMutex
 )
 
 func main() {
-	// Create a new Gin router
-	router := gin.Default()
 
-	// Set initial readiness state to true
+	rand.Seed(time.Now().UnixNano())
+	securityToken = generateRandomToken(32)
+
+	// Initialize the logger with JSON output
+	config := zap.NewProductionConfig()
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	logger, _ := config.Build()
+	defer logger.Sync()
+
+	logger.Info("Random Security Token", zap.String("token", securityToken))
+	logCurlCommand(logger)
+
 	isReady = true
 
-	// Define routes and handlers
-	router.GET("/", helloHandler)
-	router.GET("/health", healthHandler)
-	router.GET("/healthz", healthHandler)
-	router.GET("/ready", readyHandler)
-	router.GET("/readyz", readyHandler)
-
-	router.GET("/headers", headersHandler)
-
-	// Start the server
-	port := "8080"
-	router.Run(":" + port)
+	r := setupRouter(logger)
+	r.Run(":8080")
 }
 
-func helloHandler(c *gin.Context) {
-	c.String(http.StatusOK, "Hello, World!")
-}
-
-func healthHandler(c *gin.Context) {
-	// You can add more complex health checks here
-	c.String(http.StatusOK, "OK")
-}
-
-func readyHandler(c *gin.Context) {
-	readyMu.RLock()
-	defer readyMu.RUnlock()
-
-	if isReady {
-		c.String(http.StatusOK, "Ready")
-	} else {
-		c.String(http.StatusServiceUnavailable, "Not Ready")
+func generateRandomToken(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	token := make([]byte, length)
+	for i := 0; i < length; i++ {
+		token[i] = charset[rand.Intn(len(charset))]
 	}
+	return string(token)
 }
 
-func headersHandler(c *gin.Context) {
-	headers := make(map[string]string)
-	for key, values := range c.Request.Header {
-		headers[key] = values[0]
-	}
-
-	// Convert headers to JSON
-	headersJSON, err := json.Marshal(headers)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Error converting headers to JSON")
-		return
-	}
-
-	c.Data(http.StatusOK, "application/json", headersJSON)
+func logCurlCommand(logger *zap.Logger) {
+	// Log the curl command for the /env endpoint
+	curlCommand := fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:8080/env", securityToken)
+	logger.Info("Curl Command", zap.String("command", curlCommand))
 }
