@@ -38,6 +38,3 @@ build-all:
 	CGO_ENABLED=0 GOARCH=amd64 GOOS=linux  $(BUILD_FLAGS) -o bin/$(BINARY_NAME).linux.amd64 -v
 	CGO_ENABLED=0 GOARCH=amd64 GOOS=darwin  $(BUILD_FLAGS) -o bin/$(BINARY_NAME).darwin.amd64 -v
 	CGO_ENABLED=0 GOARCH=arm64 GOOS=android $(BUILD_FLAGS) -o bin/$(BINARY_NAME).arm64 -v
-
-docker-build:
-	docker build . -t cu-api

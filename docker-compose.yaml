@@ -1,0 +1,8 @@
+version: '3'
+services:
+  cu-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
