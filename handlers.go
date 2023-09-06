@@ -8,15 +8,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
-func helloHandler(c *gin.Context) {
-	c.String(http.StatusOK, "Hello, World!")
-}
-
 func healthHandler(c *gin.Context) {
-	// You can add more complex health checks here
 	c.String(http.StatusOK, "OK")
 }
 
@@ -48,16 +42,10 @@ func headersHandler(c *gin.Context) {
 }
 
 // functions for the routers
-func authMiddleware(c *gin.Context) {
-	authHeader := c.GetHeader("Authorization")
 
-	if authHeader != "Bearer "+securityToken {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		c.Abort()
-		return
-	}
-
-	c.Next()
+func envHandler(c *gin.Context) {
+	envVariables, _ := json.Marshal(getEnvironmentVariables())
+	c.Data(http.StatusOK, "application/json", envVariables)
 }
 
 func getEnvironmentVariables() map[string]string {
@@ -86,20 +74,28 @@ func getClientIP(r *http.Request) string {
 }
 
 func debugHandler(c *gin.Context) {
-	logger, _ := c.Get("logger")
-	sugarLogger, _ := logger.(*zap.SugaredLogger)
+	// Retrieve the logger from the Gin context
+	logger, exists := getOrCreateLogger(c)
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Logger not found"})
+		return
+	}
 
 	hostname, _ := os.Hostname()
 	sourceIP := getClientIP(c.Request)
 	headers := c.Request.Header
 
-	sugarLogger.Infow("Debug Information",
-		"Hostname", hostname,
-		"SourceIP", sourceIP,
-		"UserAgent", headers.Get("User-Agent"),
-		"Headers", headers,
-		"RequestURI", c.Request.RequestURI,
-	)
+	debugInfo := gin.H{
+		"Hostname":   hostname,
+		"SourceIP":   sourceIP,
+		"UserAgent":  headers.Get("User-Agent"),
+		"Headers":    headers,
+		"RequestURI": c.Request.RequestURI,
+	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Debug information logged"})
+	// Log the debug information
+	logger.Infow("Debug Information", debugInfo)
+
+	// Return the debug information in the response
+	c.JSON(http.StatusOK, debugInfo)
 }
