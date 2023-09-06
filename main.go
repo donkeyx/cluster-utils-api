@@ -21,7 +21,7 @@ func main() {
 
 	securityToken = generateRandomToken(32)
 
-	logger, err := newSugarLogger(false)
+	logger, err := newSugarLogger(true)
 	if err != nil {
 		log.Fatal("Error creating logger:", err)
 	}
