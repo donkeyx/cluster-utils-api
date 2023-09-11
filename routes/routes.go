@@ -1,20 +1,13 @@
-package main
+package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
-func setupRouter(logger *zap.SugaredLogger) *gin.Engine {
+func setupRouter(r *gin.Engine) {
 
 	gin.SetMode(gin.ReleaseMode)
-	r := gin.Default()
 
-	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
-		Output: logger.Writer(),
-	}))
-
-	r.Use(loggingMiddleware(logger))
 	r.Use(authMiddleware(logger))
 
 	r.GET("/health", healthHandler)
