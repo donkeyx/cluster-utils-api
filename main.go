@@ -1,13 +1,14 @@
 package main
 
 import (
+	"cu-api/middleware"
 	"fmt"
-	"log"
 	"math/rand"
 	"sync"
 
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"gorm.io/gorm/logger"
 )
 
 var (
@@ -19,12 +20,14 @@ var (
 
 func main() {
 
-	securityToken = generateRandomToken(32)
+	r := gin.Default()
 
-	logger, err := newSugarLogger(true)
-	if err != nil {
-		log.Fatal("Error creating logger:", err)
-	}
+	useJSONOutput := true // Set this to false for non-JSON output
+	r.Use(middleware.SetupLoggerMiddleware(useJSONOutput))
+
+	routes.setupRouter(r)
+
+	securityToken = generateRandomToken(32)
 
 	logger.Info("Random Security Token", zap.String("token", securityToken))
 	logger.Info("Curl Command", zap.String("command", getCurlCommand(8080, securityToken)))
@@ -47,30 +50,4 @@ func generateRandomToken(length int) string {
 func getCurlCommand(port int, securityToken string) string {
 	variable := fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:8080/env", securityToken)
 	return variable
-}
-
-func newSugarLogger(useJSON bool) (*zap.SugaredLogger, error) {
-	var config zap.Config
-
-	if useJSON {
-		config = zap.NewProductionConfig()
-	} else {
-		config = zap.NewDevelopmentConfig()
-	}
-
-	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	// Configure the logger to write logs to the terminal
-	config.OutputPaths = []string{"stdout"}
-
-	// Create the logger
-	logger, err := config.Build()
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a sugar logger from the base logger
-	sugarLogger := logger.Sugar()
-
-	return sugarLogger, nil
 }
