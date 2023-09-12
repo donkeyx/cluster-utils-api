@@ -6,9 +6,10 @@ import (
 	"math/rand"
 	"sync"
 
+	"cu-api/routes"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"gorm.io/gorm/logger"
 )
 
 var (
@@ -20,21 +21,25 @@ var (
 
 func main() {
 
-	r := gin.Default()
+	useJSON := true
 
-	useJSONOutput := true // Set this to false for non-JSON output
-	r.Use(middleware.SetupLoggerMiddleware(useJSONOutput))
-
-	routes.setupRouter(r)
+	logger := setupLogger(useJSON)
+	defer logger.Sync()
 
 	securityToken = generateRandomToken(32)
+
+	r := gin.Default()
+
+	r.Use(middleware.SetupLoggerMiddleware(logger))
+	r.Use(middleware.AuthMiddleware(logger, securityToken))
+
+	routes.SetupRouter(r)
 
 	logger.Info("Random Security Token", zap.String("token", securityToken))
 	logger.Info("Curl Command", zap.String("command", getCurlCommand(8080, securityToken)))
 
 	isReady = true
 
-	r := setupRouter(logger)
 	r.Run(":8080")
 }
 
@@ -50,4 +55,21 @@ func generateRandomToken(length int) string {
 func getCurlCommand(port int, securityToken string) string {
 	variable := fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:8080/env", securityToken)
 	return variable
+}
+
+func setupLogger(useJSON bool) *zap.Logger {
+	var logger *zap.Logger
+	var err error
+
+	if useJSON {
+		logger, err = zap.NewProduction()
+	} else {
+		logger, err = zap.NewDevelopment()
+	}
+
+	if err != nil {
+		panic(err)
+	}
+	return logger
+
 }

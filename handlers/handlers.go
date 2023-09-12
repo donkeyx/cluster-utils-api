@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"encoding/json"
@@ -6,26 +6,29 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
 
-func healthHandler(c *gin.Context) {
+func HealthHandler(c *gin.Context) {
 	c.String(http.StatusOK, "OK")
 }
 
-func readyHandler(c *gin.Context) {
+func ReadyHandler(c *gin.Context) {
+	var readyMu sync.RWMutex
+
 	readyMu.RLock()
 	defer readyMu.RUnlock()
 
-	if isReady {
+	if readyMu {
 		c.String(http.StatusOK, "Ready")
 	} else {
 		c.String(http.StatusServiceUnavailable, "Not Ready")
 	}
 }
 
-func headersHandler(c *gin.Context) {
+func HeadersHandler(c *gin.Context) {
 	headers := make(map[string]string)
 	for key, values := range c.Request.Header {
 		headers[key] = values[0]
@@ -43,12 +46,12 @@ func headersHandler(c *gin.Context) {
 
 // functions for the routers
 
-func envHandler(c *gin.Context) {
-	envVariables, _ := json.Marshal(getEnvironmentVariables())
+func EnvHandler(c *gin.Context) {
+	envVariables, _ := json.Marshal(GetEnvironmentVariables())
 	c.Data(http.StatusOK, "application/json", envVariables)
 }
 
-func getEnvironmentVariables() map[string]string {
+func GetEnvironmentVariables() map[string]string {
 	envVariables := make(map[string]string)
 	for _, e := range os.Environ() {
 		pair := strings.SplitN(e, "=", 2)
@@ -60,7 +63,7 @@ func getEnvironmentVariables() map[string]string {
 }
 
 // getClientIP extracts the client's IP address from the request.
-func getClientIP(r *http.Request) string {
+func GetClientIP(r *http.Request) string {
 	xForwardedFor := r.Header.Get("X-Forwarded-For")
 	if xForwardedFor != "" {
 		return xForwardedFor
@@ -73,13 +76,9 @@ func getClientIP(r *http.Request) string {
 	return ""
 }
 
-func debugHandler(c *gin.Context) {
+func DebugHandler(c *gin.Context) {
 	// Retrieve the logger from the Gin context
-	logger, exists := getOrCreateLogger(c)
-	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Logger not found"})
-		return
-	}
+	logger := c.MustGet("logger").(*sugar.Logger)
 
 	hostname, _ := os.Hostname()
 	sourceIP := getClientIP(c.Request)

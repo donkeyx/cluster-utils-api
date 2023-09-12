@@ -1,23 +1,25 @@
 package routes
 
 import (
+	"cu-api/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
-func setupRouter(r *gin.Engine) {
+func SetupRouter(r *gin.Engine) {
 
 	gin.SetMode(gin.ReleaseMode)
 
-	r.Use(authMiddleware(logger))
+	r.Use(middleware.AuthMiddleware(logger))
 
-	r.GET("/health", healthHandler)
-	r.GET("/healthz", healthHandler)
-	r.GET("/ready", readyHandler)
-	r.GET("/readyz", readyHandler)
+	r.GET("/health", HealthHandler)
+	r.GET("/healthz", HealthHandler)
+	r.GET("/ready", ReadyHandler)
+	r.GET("/readyz", ReadyHandler)
 
-	r.GET("/headers", headersHandler)
-	r.GET("/env", authMiddleware(logger), envHandler)
-	r.GET("/debug", debugHandler)
+	r.GET("/headers", HeadersHandler)
+	r.GET("/env", authMiddleware(logger), EnvHandler)
+	r.GET("/debug", DebugHandler)
 
 	return r
 }
