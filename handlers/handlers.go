@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,12 +15,9 @@ func HealthHandler(c *gin.Context) {
 }
 
 func ReadyHandler(c *gin.Context) {
-	var readyMu sync.RWMutex
+	isReady := true // not sure what i will do here?
 
-	readyMu.RLock()
-	defer readyMu.RUnlock()
-
-	if readyMu {
+	if isReady {
 		c.String(http.StatusOK, "Ready")
 	} else {
 		c.String(http.StatusServiceUnavailable, "Not Ready")
@@ -63,7 +59,7 @@ func GetEnvironmentVariables() map[string]string {
 }
 
 // getClientIP extracts the client's IP address from the request.
-func GetClientIP(r *http.Request) string {
+func getClientIP(r *http.Request) string {
 	xForwardedFor := r.Header.Get("X-Forwarded-For")
 	if xForwardedFor != "" {
 		return xForwardedFor
@@ -77,8 +73,6 @@ func GetClientIP(r *http.Request) string {
 }
 
 func DebugHandler(c *gin.Context) {
-	// Retrieve the logger from the Gin context
-	logger := c.MustGet("logger").(*sugar.Logger)
 
 	hostname, _ := os.Hostname()
 	sourceIP := getClientIP(c.Request)
@@ -91,9 +85,6 @@ func DebugHandler(c *gin.Context) {
 		"Headers":    headers,
 		"RequestURI": c.Request.RequestURI,
 	}
-
-	// Log the debug information
-	logger.Infow("Debug Information", debugInfo)
 
 	// Return the debug information in the response
 	c.JSON(http.StatusOK, debugInfo)
