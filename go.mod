@@ -5,7 +5,6 @@ go 1.21
 require (
 	github.com/gin-gonic/gin v1.9.1
 	go.uber.org/zap v1.25.0
-	gorm.io/gorm v1.25.4
 )
 
 require (

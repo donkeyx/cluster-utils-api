@@ -1,25 +1,28 @@
 package routes
 
 import (
+	"cu-api/handlers"
 	"cu-api/middleware"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
-func SetupRouter(r *gin.Engine) {
+func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 
-	gin.SetMode(gin.ReleaseMode)
+	r.Use(middleware.SetupLoggerMiddleware(logger))
 
-	r.Use(middleware.AuthMiddleware(logger))
+	r.GET("/health", handlers.HealthHandler)
+	r.GET("/healthz", handlers.HealthHandler)
+	r.GET("/ready", handlers.ReadyHandler)
+	r.GET("/readyz", handlers.ReadyHandler)
 
-	r.GET("/health", HealthHandler)
-	r.GET("/healthz", HealthHandler)
-	r.GET("/ready", ReadyHandler)
-	r.GET("/readyz", ReadyHandler)
+	r.GET("/headers", handlers.HeadersHandler)
+	r.GET("/debug", handlers.DebugHandler)
 
-	r.GET("/headers", HeadersHandler)
-	r.GET("/env", authMiddleware(logger), EnvHandler)
-	r.GET("/debug", DebugHandler)
+	authGroup := r.Group("/auth")
+	authGroup.Use(middleware.AuthMiddleware(logger, st))
 
-	return r
+	authGroup.GET("/env", handlers.EnvHandler)
+
 }

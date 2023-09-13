@@ -1,10 +1,8 @@
 package main
 
 import (
-	"cu-api/middleware"
 	"fmt"
 	"math/rand"
-	"sync"
 
 	"cu-api/routes"
 
@@ -12,14 +10,11 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	isReady       bool
-	securityToken string
-	readyMu       sync.RWMutex
-	healthMu      sync.RWMutex
-)
+var securityToken string
 
 func main() {
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.Default()
 
 	useJSON := true
 
@@ -28,17 +23,10 @@ func main() {
 
 	securityToken = generateRandomToken(32)
 
-	r := gin.Default()
-
-	r.Use(middleware.SetupLoggerMiddleware(logger))
-	r.Use(middleware.AuthMiddleware(logger, securityToken))
-
-	routes.SetupRouter(r)
+	routes.SetupRouter(logger, securityToken, r)
 
 	logger.Info("Random Security Token", zap.String("token", securityToken))
 	logger.Info("Curl Command", zap.String("command", getCurlCommand(8080, securityToken)))
-
-	isReady = true
 
 	r.Run(":8080")
 }
