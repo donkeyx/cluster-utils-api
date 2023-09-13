@@ -12,7 +12,6 @@ func SetupLoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Attach the logger to the context for access in handlers
 		c.Set("logger", logger)
-
 		// Continue with the request
 		c.Next()
 	}

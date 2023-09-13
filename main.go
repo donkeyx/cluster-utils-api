@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var securityToken string
@@ -19,7 +20,10 @@ func main() {
 	useJSON := true
 
 	logger := setupLogger(useJSON)
-	defer logger.Sync()
+
+	// r.Use(middleware.SetupLoggerMiddleware(logger))
+	// r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
+	// r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	securityToken = generateRandomToken(32)
 
@@ -46,8 +50,20 @@ func getCurlCommand(port int, securityToken string) string {
 }
 
 func setupLogger(useJSON bool) *zap.Logger {
-	var logger *zap.Logger
-	var err error
+
+	config := zap.Config{
+		Level:            zap.NewAtomicLevelAt(zapcore.InfoLevel),
+		Development:      true, // Set this to false in production
+		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
+	}
+
+	logger, err := config.Build()
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Sync()
 
 	if useJSON {
 		logger, err = zap.NewProduction()
