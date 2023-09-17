@@ -10,6 +10,8 @@ import (
 
 func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 
+	r.Use(middleware.LoggerMiddleware(logger))
+
 	// r.Use(middleware.SetupLoggerMiddleware(logger))
 	// r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
 	// r.Use(ginzap.RecoveryWithZap(logger, true))

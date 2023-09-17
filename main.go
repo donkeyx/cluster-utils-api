@@ -20,6 +20,7 @@ func main() {
 	useJSON := true
 
 	logger := setupLogger(useJSON)
+	defer logger.Sync()
 
 	// r.Use(middleware.SetupLoggerMiddleware(logger))
 	// r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
@@ -51,29 +52,35 @@ func getCurlCommand(port int, securityToken string) string {
 
 func setupLogger(useJSON bool) *zap.Logger {
 
-	config := zap.Config{
-		Level:            zap.NewAtomicLevelAt(zapcore.InfoLevel),
-		Development:      true, // Set this to false in production
-		EncoderConfig:    zap.NewProductionEncoderConfig(),
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
-	}
+	// var logger *zap.Logger
+	// var err error
+	// if useJSON {
+	// 	logger, err = zap.NewProduction()
+	// } else {
+	// 	fmt.Print("Using Development Logger")
+	// 	logger, err = zap.NewDevelopment()
+	// }
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	config := zap.NewProductionConfig()
+	config.Encoding = "json"
+	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // Optional: Use ISO8601 time format
+
+	// // config := zap.Config{
+	// // 	Level:            zap.NewAtomicLevelAt(zapcore.InfoLevel),
+	// // 	Development:      true, // Set this to false in production
+	// // 	EncoderConfig:    encoderConfig,
+	// // 	OutputPaths:      []string{"stdout"},
+	// // 	ErrorOutputPaths: []string{"stderr"},
+	// // }
 
 	logger, err := config.Build()
 	if err != nil {
 		panic(err)
 	}
-	defer logger.Sync()
 
-	if useJSON {
-		logger, err = zap.NewProduction()
-	} else {
-		logger, err = zap.NewDevelopment()
-	}
-
-	if err != nil {
-		panic(err)
-	}
 	return logger
-
 }
