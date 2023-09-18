@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 
+	"cu-api/middleware"
 	"cu-api/routes"
 
 	"github.com/gin-gonic/gin"
@@ -14,13 +15,16 @@ import (
 var securityToken string
 
 func main() {
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.Default()
 
 	useJSON := true
 
 	logger := setupLogger(useJSON)
 	defer logger.Sync()
+
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()                             // empty engine
+	r.Use(middleware.LoggerMiddleware(logger)) // adds our new middleware
+	r.Use(gin.Recovery())
 
 	// r.Use(middleware.SetupLoggerMiddleware(logger))
 	// r.Use(ginzap.Ginzap(logger, time.RFC3339, true))

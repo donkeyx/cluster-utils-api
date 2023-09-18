@@ -2,31 +2,31 @@ package middleware
 
 import (
 	"net/http"
-	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
-
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.TimeKey = "timestamp"
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	// Create a Zap logger with a JSON encoder
-	logger = zap.New(zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
-		zapcore.AddSync(os.Stdout),
-		zap.NewAtomicLevelAt(zap.InfoLevel),
-	), zap.AddCaller())
-
 	return func(c *gin.Context) {
-		// Attach the logger to the context for access in handlers
-		c.Set("zapLogger", logger)
-		// Continue with the request
+		start := time.Now()
+
+		// Process the request
 		c.Next()
+
+		// Log request and response details
+		end := time.Now()
+		latency := end.Sub(start)
+
+		logger.Info("Request",
+			zap.String("method", c.Request.Method),
+			zap.String("path", c.Request.URL.Path),
+			zap.String("ip", c.ClientIP()),
+			zap.String("user_agent", c.Request.UserAgent()),
+			zap.Int("status", c.Writer.Status()),
+			zap.Duration("latency", latency),
+		)
 	}
 }
 
