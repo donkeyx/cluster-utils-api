@@ -10,12 +10,6 @@ import (
 
 func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 
-	// r.Use(middleware.LoggerMiddleware(logger))
-
-	// r.Use(middleware.SetupLoggerMiddleware(logger))
-	// r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
-	// r.Use(ginzap.RecoveryWithZap(logger, true))
-
 	r.GET("/health", handlers.HealthHandler)
 	r.GET("/healthz", handlers.HealthHandler)
 	r.GET("/ready", handlers.ReadyHandler)
@@ -26,7 +20,6 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 
 	authGroup := r.Group("/a")
 	authGroup.Use(middleware.AuthMiddleware(logger, st))
-
 	authGroup.GET("/env", handlers.EnvHandler)
 
 }

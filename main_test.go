@@ -2,6 +2,7 @@
 package main
 
 import (
+	"cu-api/routes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,17 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHelloEndpoint(t *testing.T) {
+func TestHealthEndpoint(t *testing.T) {
 	// Create a new Gin router
 	r := gin.New()
-
-	// Define your routes as in main.go
-	r.GET("/hello", func(c *gin.Context) {
-		c.String(http.StatusOK, "Hello, World!")
-	})
+	logger := setupLogger()
+	routes.SetupRouter(logger, securityToken, r)
 
 	// Create a test HTTP request to the "/hello" endpoint
-	req, err := http.NewRequest("GET", "/hello", nil)
+	req, err := http.NewRequest("GET", "/health", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +33,6 @@ func TestHelloEndpoint(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// Verify the response body
-	expectedResponse := "Hello, World!"
+	expectedResponse := "OK"
 	assert.Equal(t, expectedResponse, rr.Body.String())
 }
