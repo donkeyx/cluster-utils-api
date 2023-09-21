@@ -12,6 +12,8 @@ import (
 )
 
 func TestHealthEndpoint(t *testing.T) {
+	expectedResponse := "OK"
+
 	// Create a new Gin router
 	r := gin.New()
 	logger := setupLogger()
@@ -23,16 +25,9 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a response recorder to record the response
 	rr := httptest.NewRecorder()
-
-	// Serve the request to the router
 	r.ServeHTTP(rr, req)
 
-	// Verify the HTTP status code
 	assert.Equal(t, http.StatusOK, rr.Code)
-
-	// Verify the response body
-	expectedResponse := "OK"
 	assert.Equal(t, expectedResponse, rr.Body.String())
 }
