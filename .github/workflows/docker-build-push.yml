@@ -75,4 +75,4 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: docker.io/yourusername/your-image-name:{{ steps.meta.outputs.tags }}
+          tags: docker.io/donkeyx/cluster-utils-api:{{ steps.meta.outputs.tags }}
