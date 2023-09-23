@@ -37,7 +37,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17
+          go-version: 1.21
 
       - name: Cache Go packages (reuse cache from 'cache' job)
         uses: actions/cache@v2
@@ -94,4 +94,4 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: docker.io/yourusername/your-image-name:{{ steps.meta.outputs.tags }}
+          tags: docker.io/donkeyx/cluster-utils-api:{{ steps.meta.outputs.tags }}
