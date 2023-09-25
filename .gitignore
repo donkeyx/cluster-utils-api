@@ -1,1 +1,5 @@
-node_modules
+bin/*
+*.log
+*.log
+__debug_bin
+__debug_bin*
