@@ -56,9 +56,9 @@ $ curl -sS  localhost:8080 | jq
     "/healthz",
     "/ready",
     "/readyz",
-    "/env",
     "/headers",
-    "/readyness_delay"
+    "/readyness_delay",
+    "/a/env"
   ]
 }
 ```
