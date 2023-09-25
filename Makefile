@@ -12,7 +12,7 @@ all: clean deps test build-all
 build:
 	CGO_ENABLED=0 $(BUILD_FLAGS) -o bin/$(BINARY_NAME) -v
 test:
-	go test
+	go test ./... --race
 
 	mkdir -p tmp/test-coverage
 	go test -coverprofile=tmp/test-coverage/coverage.out
