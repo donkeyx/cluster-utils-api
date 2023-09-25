@@ -21,5 +21,4 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	authGroup := r.Group("/a")
 	authGroup.Use(middleware.AuthMiddleware(logger, st))
 	authGroup.GET("/env", handlers.EnvHandler)
-
 }
