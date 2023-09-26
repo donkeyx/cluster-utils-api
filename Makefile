@@ -10,6 +10,7 @@ BUILD_FLAGS = go build -ldflags "-w -s -X main.Version=$(VERSION) -X main.GitHas
 
 all: clean deps test build-all
 build:
+	swag init
 	CGO_ENABLED=0 $(BUILD_FLAGS) -o bin/$(BINARY_NAME) -v
 test:
 	go test ./... --race
@@ -22,7 +23,8 @@ clean:
 	find ./bin/ -type f | grep -v keep | xargs rm
 
 deps:
-	go get .
+	go get ./...
+	go install github.com/swaggo/swag/cmd/swag@latest
 
 update:
 	go get ./...
