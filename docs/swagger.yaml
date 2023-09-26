@@ -1,0 +1,115 @@
+basePath: /
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a util api which lots of endpoints making it easy to test routing/ingress/egress
+  title: Cluster Util API
+  version: "2.0"
+paths:
+  /debug:
+    get:
+      description: Get lots of info from running container headers/ips
+      operationId: debug
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Debug
+  /env:
+    get:
+      description: Get the env variables available to the api. This is behind auth
+      operationId: env
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get environment variables
+  /headers:
+    get:
+      description: Get the headers recieved by the api
+      operationId: headers
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Get headers
+  /health:
+    get:
+      description: Get the health of the api
+      operationId: health
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Get health
+  /healthz:
+    get:
+      description: Get the health of the api
+      operationId: healthz
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Get healthz
+  /ping:
+    get:
+      description: Get the readyness of the api
+      operationId: ping
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: PONG
+          schema:
+            type: string
+      summary: Get ping
+  /ready:
+    get:
+      description: Get the readyness of the api
+      operationId: ready
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Get ready
+  /readyz:
+    get:
+      description: Get the readyness of the api
+      operationId: readyz
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Get readyz
+swagger: "2.0"

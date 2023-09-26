@@ -2,35 +2,37 @@
 
 ## description
 
-Sample docker image to test docker deployments in your clusters or locally. Basically, a hello world with some useful info.
-
-The container will run a simple node express service to show the environment variables available in the container namespace. Container port is 8080 but you can bind to 80 or whatever you like.
+Simple docker image to allow testing within clusters or locally. It provides me an api as the base which will run with an entrypoint of node/npm/cu-api and still run the base expected binary. This is great for testing that "your" api might be routable with istio or other meshes, without having to worry about issues with the api its self. It also allows me to deploy and verify routing, check headers and other things like verifying env parameters are exposed to the container.
 
 Default route is json response with environment variables, with more to come...
 
 dockerhub: https://hub.docker.com/repository/docker/donkeyx/cluster-utils-api
+github: https://github.com/donkeyx/cluster-utils-api
 
 ## Usage
 
-### Build image:
-
-You can build the image locally like this and then push to your own repo for testing
-
-```bash
-# pull image
-docker pull donkeyx/cluster-utils-api
-
-# tag
-docker tag donkeyx/cluster-utils-api your-repo-url/container-name:latest
-
-# push
-docker push your-repo-url/container-name:latest
-```
+The the endpoints are generally readable, but /a/ will be authenticated and you can find the bearer token in the logs. This will rotate on every startup to keep the sensitive endpoints a bit more secure.
 
 ### Start container:
 
 ```bash
 docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
+
+# then curl the container
+$ curl -sS  localhost:8080 | jq
+{
+  "version": "v1.1",
+  "endpoints": [
+    "/health",
+    "/healthz",
+    "/ready",
+    "/readyz",
+    "/headers",
+    "/readyness_delay",
+    "/a/env"
+  ]
+}
+
 ```
 
 ### run image in k8 cluster:
@@ -64,18 +66,6 @@ Now you can use port forwarding to curl your apis inside the cluster
 # in one windows forward the ports to the service
 $ kubectl -n default port-forward svc/cluster-utils-api 8080:80
 
-# then curl the service -> pod
-$ curl -sS  localhost:8080 | jq
-{
-  "version": "v1.1",
-  "endpoints": [
-    "/statsz",
-    "/healthz",
-    "/ping",
-    "/envz",
-    "/readyness_delay"
-  ]
-}
 ```
 
 
