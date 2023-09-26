@@ -7,13 +7,32 @@ Simple docker image to allow testing within clusters or locally. It provides me 
 Default route is json response with environment variables, with more to come...
 
 dockerhub: https://hub.docker.com/repository/docker/donkeyx/cluster-utils-api
+github: https://github.com/donkeyx/cluster-utils-api
 
 ## Usage
+
+The the endpoints are generally readable, but /a/ will be authenticated and you can find the bearer token in the logs. This will rotate on every startup to keep the sensitive endpoints a bit more secure.
 
 ### Start container:
 
 ```bash
 docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
+
+# then curl the container
+$ curl -sS  localhost:8080 | jq
+{
+  "version": "v1.1",
+  "endpoints": [
+    "/health",
+    "/healthz",
+    "/ready",
+    "/readyz",
+    "/headers",
+    "/readyness_delay",
+    "/a/env"
+  ]
+}
+
 ```
 
 ### run image in k8 cluster:
@@ -47,20 +66,6 @@ Now you can use port forwarding to curl your apis inside the cluster
 # in one windows forward the ports to the service
 $ kubectl -n default port-forward svc/cluster-utils-api 8080:80
 
-# then curl the service -> pod
-$ curl -sS  localhost:8080 | jq
-{
-  "version": "v1.1",
-  "endpoints": [
-    "/health",
-    "/healthz",
-    "/ready",
-    "/readyz",
-    "/headers",
-    "/readyness_delay",
-    "/a/env"
-  ]
-}
 ```
 
 
