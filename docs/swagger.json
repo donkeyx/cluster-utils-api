@@ -1,0 +1,174 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "This is a util api which lots of endpoints making it easy to test routing/ingress/egress",
+        "title": "Cluster Util API",
+        "contact": {},
+        "version": "2.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/debug": {
+            "get": {
+                "description": "Get lots of info from running container headers/ips",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Debug",
+                "operationId": "debug",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/env": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the env variables available to the api. This is behind auth",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get environment variables",
+                "operationId": "env",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/headers": {
+            "get": {
+                "description": "Get the headers recieved by the api",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get headers",
+                "operationId": "headers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Get the health of the api",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get health",
+                "operationId": "health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/healthz": {
+            "get": {
+                "description": "Get the health of the api",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get healthz",
+                "operationId": "healthz",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/ping": {
+            "get": {
+                "description": "Get the readyness of the api",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get ping",
+                "operationId": "ping",
+                "responses": {
+                    "200": {
+                        "description": "PONG",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/ready": {
+            "get": {
+                "description": "Get the readyness of the api",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get ready",
+                "operationId": "ready",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/readyz": {
+            "get": {
+                "description": "Get the readyness of the api",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get readyz",
+                "operationId": "readyz",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
