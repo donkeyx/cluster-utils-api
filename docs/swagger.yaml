@@ -1,5 +1,15 @@
+swagger: "2.0"
 basePath: /
 host: localhost:8080
+schemes:
+  - http
+  - https
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+
 info:
   contact: {}
   description: This is a util api which lots of endpoints making it easy to test routing/ingress/egress
@@ -112,4 +122,3 @@ paths:
           schema:
             type: string
       summary: Get readyz
-swagger: "2.0"
