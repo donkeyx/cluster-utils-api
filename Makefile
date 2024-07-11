@@ -12,7 +12,7 @@ BUILD_FLAGS := -ldflags="-w -s -X main.Version=$(VERSION) -X main.GitHash=$(GIT_
 # Targets
 all: clean deps test build-all
 
-build: swag init
+build:
 	CGO_ENABLED=0 go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME) -v
 
 test:
