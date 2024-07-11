@@ -4,10 +4,13 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - "release/*"
 
 jobs:
   cache:
     runs-on: ubuntu-latest
+    environment: ci
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,6 +29,7 @@ jobs:
   docker:
     needs: cache
     runs-on: ubuntu-latest
+    environment: ci
     permissions:
       contents: write
       packages: write
@@ -58,7 +62,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -74,9 +79,13 @@ jobs:
             ghcr.io/donkeyx/cluster-utils-api
             docker.io/donkeyx/cluster-utils-api
           tags: |
+            type=sha
+            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}
             type=semver,pattern={{major}}.{{minor}}
+          branches: |
+            release/*
 
       - name: Build and push
         uses: docker/build-push-action@v5
