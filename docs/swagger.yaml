@@ -8,7 +8,7 @@ info:
 paths:
   /debug:
     get:
-      description: Get lots of info from running container headers/ips
+      description: Get lots of info from running container headers/ips AAA
       operationId: debug
       produces:
       - application/json
