@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"strconv"
 
 	"cu-api/middleware"
 	"cu-api/routes"
@@ -25,18 +27,20 @@ func main() {
 	defer logger.Sync()
 
 	gin.SetMode(gin.ReleaseMode)
-	r := gin.New()                             // empty engine
-	r.Use(middleware.LoggerMiddleware(logger)) // adds our new middleware
+	r := gin.New()
+	r.Use(middleware.LoggerMiddleware(logger))
 	r.Use(gin.Recovery())
+
+	port := getEnvOrDefault("PORT", 8080)
 
 	securityToken = generateRandomToken(32)
 
 	routes.SetupRouter(logger, securityToken, r)
-
+	logger.Info("App started on port:", zap.Int("port", port))
 	logger.Info("Random Security Token", zap.String("token", securityToken))
-	logger.Info("Curl Command", zap.String("command", getCurlCommand(8080, securityToken)))
+	logger.Info("Curl Command", zap.String("command", getCurlCommand(port, securityToken)))
 
-	r.Run(":8080")
+	r.Run(fmt.Sprintf(":%d", port))
 }
 
 func generateRandomToken(length int) string {
@@ -66,4 +70,15 @@ func setupLogger() *zap.Logger {
 	}
 
 	return logger
+}
+
+// getEnvOrDefault retrieves the value of the environment variable named by the key
+// or returns the default value if the environment variable is not set.
+func getEnvOrDefault(key string, defaultValue int) int {
+	if value, exists := os.LookupEnv(key); exists {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
 }

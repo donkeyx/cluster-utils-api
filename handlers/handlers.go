@@ -124,6 +124,7 @@ func HeadersHandler(c *gin.Context) {
 // @Success 200 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /env [get]
+// @Param   Authorization header string true "With the bearer started" default(Bearer )
 func EnvHandler(c *gin.Context) {
 	envVariables, _ := json.Marshal(GetEnvironmentVariables())
 	c.Data(http.StatusOK, "application/json", envVariables)
