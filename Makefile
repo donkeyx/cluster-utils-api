@@ -41,4 +41,5 @@ build-all:
 	CGO_ENABLED=0 GOARCH=386   GOOS=windows  go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).windows.amd64 -v
 	CGO_ENABLED=0 GOARCH=amd64 GOOS=linux    go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).linux.amd64 -v
 	CGO_ENABLED=0 GOARCH=amd64 GOOS=darwin   go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).darwin.amd64 -v
+	CGO_ENABLED=0 GOARCH=arm64 GOOS=darwin   go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).darwin.arm64 -v
 	CGO_ENABLED=0 GOARCH=arm64 GOOS=android go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).arm64 -v
