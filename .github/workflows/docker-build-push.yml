@@ -91,10 +91,10 @@ jobs:
         uses: docker/build-push-action@v5
         moby/buildkit:v0.15.0
         with:
+          context: .
           driver-opts: |
             image=moby/buildkit:v0.12.0
           buildkitd-flags: --debug
-          context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
