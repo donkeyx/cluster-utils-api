@@ -22,6 +22,7 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	})
 
 	r.GET("/api-docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r.GET("/help", handlers.HelpHandler)
 
 	r.GET("/health", handlers.HealthHandler)
 	r.GET("/healthz", handlers.HealthzHandler)

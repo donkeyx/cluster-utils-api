@@ -45,6 +45,22 @@ func HealthzHandler(c *gin.Context) {
 	HealthHandler(c)
 }
 
+// HelpHandler handles GET requests to /help endpoint and returns a list of available routes.
+func HelpHandler(c *gin.Context) {
+	routes := make(map[string]string)
+	routes["/healthz"] = "GET"
+	routes["/health"] = "GET"
+	routes["/readyz"] = "GET"
+	routes["/ready"] = "GET"
+	routes["/ping"] = "GET"
+	routes["/headers"] = "GET"
+	routes["/a/env"] = "GET"
+	routes["/debug"] = "GET"
+	routes["/"] = "This can be used to redirect to the swagger docs for more details"
+
+	c.JSON(http.StatusOK, routes)
+}
+
 // @Summary Get health
 // @Description Get the health of the api
 // @ID health

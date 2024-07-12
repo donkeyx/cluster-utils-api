@@ -2,12 +2,13 @@
 
 ## description
 
-Simple docker image to allow testing within clusters or locally. It provides me an api as the base which will run with an entrypoint of node/npm/cu-api and still run the base expected binary. This is great for testing that "your" api might be routable with istio or other meshes, without having to worry about issues with the api its self. It also allows me to deploy and verify routing, check headers and other things like verifying env parameters are exposed to the container.
+Simple docker image which will stand up a flexibile api that handles most entrypoints and has all the health variations. This allows me to deploy to a cluster, ecs/eks with any entrypoint or params and it will still run and respont to health checks. Great for testing cluster setup and has endpoints for debugging routing and headers.
 
-Default route is json response with environment variables, with more to come...
+Default route is swagger doc for the endpoints
 
-dockerhub: https://hub.docker.com/repository/docker/donkeyx/cluster-utils-api
-github: https://github.com/donkeyx/cluster-utils-api
+| dockerhub: https://hub.docker.com/repository/docker/donkeyx/cluster-utils-api
+
+| github: https://github.com/donkeyx/cluster-utils-api
 
 ## Usage
 
@@ -17,22 +18,25 @@ The the endpoints are generally readable, but /a/ will be authenticated and you 
 
 ```bash
 docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
+```
+### use the swagger docs by opening this in your browser
+http://localhost:8080
 
-# then curl the container
-$ curl -sS  localhost:8080 | jq
+
+```bash
+# view basic info
+curl -sS localhost:8080/help|jq
 {
-  "version": "v1.1",
-  "endpoints": [
-    "/health",
-    "/healthz",
-    "/ready",
-    "/readyz",
-    "/headers",
-    "/readyness_delay",
-    "/a/env"
-  ]
+  "/": "This can be used to redirect to the swagger docs",
+  "/a/env": "GET",
+  "/debug": "GET",
+  "/headers": "GET",
+  "/health": "GET",
+  "/healthz": "GET",
+  "/ping": "GET",
+  "/ready": "GET",
+  "/readyz": "GET"
 }
-
 ```
 
 ### run image in k8 cluster:
@@ -61,39 +65,26 @@ service/kubernetes          ClusterIP   10.114.0.1   <none>        443/TCP   99d
 ...
 ```
 
-Now you can use port forwarding to curl your apis inside the cluster
+### Now you can use port forwarding to curl your apis inside the cluster
+
 ```bash
 # in one windows forward the ports to the service
 $ kubectl -n default port-forward svc/cluster-utils-api 8080:80
 
-```
-
-
-### curling apis in this container:
-
-curling your running container
-
-```bash
-❯ http localhost:8080
-HTTP/1.1 200 OK
-Connection: keep-alive
-Content-Length: 4790
-Content-Type: application/json; charset=utf-8
-Date: Tue, 02 Apr 2019 08:49:22 GMT
-ETag: W/"12b6-OdCM/Gv6+/5YnNIz25ceGper7Zc"
-X-Powered-By: Express
-
+# then curl the service -> pod
+curl -sS localhost:8080/debug|jq
 {
-    "HOME": "/root",
-    "HOSTNAME": "377ad6708651",
-    "INIT_CWD": "/usr/src/app",
-    "LANG": "en_AU.UTF-8",
-    "LANGUAGE": "en_AU.UTF-8",
-    "LC_ALL": "en_AU.UTF-8",
-    "LC_CTYPE": "en_AU.UTF-8",
-    "NODE": "/usr/local/bin/node",
-    "NODE_VERSION": "11.13.0",
-    "PATH": "/usr/local/lib/node_modules/npm/node_modules/npm-lifecycle/node-gyp-bin:/usr/src/app/node_modules/.bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-    "PWD": "/usr/src/app"
+  "Headers": {
+    "Accept": [
+      "*/*"
+    ],
+    "User-Agent": [
+      "curl/7.68.0"
+    ]
+  },
+  "Hostname": "DESKTOP-V9N2U1D",
+  "RequestURI": "/debug",
+  "SourceIP": "127.0.0.1",
+  "UserAgent": "curl/7.68.0"
 }
 ```
