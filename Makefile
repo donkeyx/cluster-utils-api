@@ -1,5 +1,5 @@
 # Variables
-BINARY_PATH := ./bin/linux/
+BINARY_PATH := ./bin
 BINARY_NAME := cu-api
 VERSION := $(shell git describe --tags)
 GIT_HASH := $(shell git rev-parse --short HEAD)
