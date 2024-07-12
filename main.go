@@ -53,7 +53,7 @@ func generateRandomToken(length int) string {
 }
 
 func getCurlCommand(port int, securityToken string) string {
-	variable := fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:%d/env", securityToken, port)
+	variable := fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:%d/a/env | jq", securityToken, port)
 	return variable
 }
 

@@ -11,6 +11,6 @@ RUN make deps build
 FROM debian:stable-slim
 WORKDIR /app
 COPY --from=0 /app/bin .
-#RUN ln -s /app/cu-api /usr/local/bin/cu-api; ln -s /app/cu-api /usr/local/bin/node; ln -s /app/cu-api /usr/local/bin/npm;
+RUN ln -s /app/cu-api /usr/local/bin/cu-api; ln -s /app/cu-api /usr/local/bin/node; ln -s /app/cu-api /usr/local/bin/npm;
 EXPOSE 8080
 ENTRYPOINT [ "/app/cu-api" ]
