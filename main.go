@@ -1,3 +1,9 @@
+// @title Cluster Util API
+// @version 2.0
+// @description This is a util api which lots of endpoints making it easy to test routing/ingress/egress
+// @host localhost:8080
+// @BasePath /
+
 package main
 
 import (
@@ -16,11 +22,6 @@ import (
 
 var securityToken string
 
-// @title Cluster Util API
-// @version 2.0
-// @description This is a util api which lots of endpoints making it easy to test routing/ingress/egress
-// @host localhost:8080
-// @BasePath /
 func main() {
 
 	logger := setupLogger()
