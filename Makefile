@@ -1,5 +1,5 @@
 # Variables
-BINARY_PATH := ./bin/linux/
+BINARY_PATH := ./bin
 BINARY_NAME := cu-api
 VERSION := $(shell git describe --tags)
 GIT_HASH := $(shell git rev-parse --short HEAD)
@@ -12,7 +12,7 @@ BUILD_FLAGS := -ldflags="-w -s -X main.Version=$(VERSION) -X main.GitHash=$(GIT_
 # Targets
 all: clean deps test build-all
 
-build: swag init
+build:
 	CGO_ENABLED=0 go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME) -v
 
 test:
@@ -41,4 +41,5 @@ build-all:
 	CGO_ENABLED=0 GOARCH=386   GOOS=windows  go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).windows.amd64 -v
 	CGO_ENABLED=0 GOARCH=amd64 GOOS=linux    go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).linux.amd64 -v
 	CGO_ENABLED=0 GOARCH=amd64 GOOS=darwin   go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).darwin.amd64 -v
+	CGO_ENABLED=0 GOARCH=arm64 GOOS=darwin   go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).darwin.arm64 -v
 	CGO_ENABLED=0 GOARCH=arm64 GOOS=android go build $(BUILD_FLAGS) -o $(BINARY_PATH)/$(BINARY_NAME).arm64 -v
