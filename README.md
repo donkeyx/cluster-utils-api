@@ -1,37 +1,52 @@
 # cluster-utils-api
 
-Flexible test API for clusters (Kubernetes, ECS/EKS, local Docker). It accepts normal health probes, exposes debug helpers for routing/headers, and serves interactive **Swagger** docs.
+## description
 
-| | |
-|---|---|
-| **Docker Hub** | https://hub.docker.com/r/donkeyx/cluster-utils-api |
-| **GHCR** | `ghcr.io/donkeyx/cluster-utils-api` |
-| **GitHub** | https://github.com/donkeyx/cluster-utils-api |
+Simple docker image which will stand up a flexibile api that handles most entrypoints and has all the health variations. This allows me to deploy to a cluster, ecs/eks with any entrypoint or params and it will still run and respond to health checks. Great for testing cluster setup and has endpoints for debugging routing and headers.
 
-## Quick start
+Default route redirects into the **swagger** docs so you can poke the endpoints from the browser.
+
+| dockerhub: https://hub.docker.com/r/donkeyx/cluster-utils-api
+
+| ghcr: `ghcr.io/donkeyx/cluster-utils-api`
+
+| github: https://github.com/donkeyx/cluster-utils-api
+
+## Usage
+
+Most endpoints are open. Anything under `/a/` is authenticated — grab the bearer token from the container logs on startup (it rotates every restart). The app also logs a ready made curl for `/a/env`.
+
+Swagger UI:
+
+- http://localhost:8080/  (redirects)
+- http://localhost:8080/api-docs/index.html
+
+Port defaults to `8080`, override with `PORT` if you need to.
+
+### Start container:
 
 ```bash
 docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
 ```
 
-Open Swagger UI in a browser:
-
-- http://localhost:8080/ → redirects to the docs  
-- http://localhost:8080/api-docs/index.html
-
-Default listen port is **8080**. Override with env `PORT`.
-
-## Swagger & help
-
-Interactive OpenAPI (Swagger 2.0) is built into the image. Prefer the UI for request/response detail.
-
-Quick machine-readable route list:
-
 ```bash
+# quick route map
 curl -sS localhost:8080/help | jq
+
+# health / ping
+curl -sS localhost:8080/healthz
+curl -sS localhost:8080/ping
+
+# debug routing / headers
+curl -sS localhost:8080/headers | jq
+curl -sS localhost:8080/debug | jq
+
+# env dump (needs the token from logs)
+docker logs test-api 2>&1 | head -30
+curl -sS -H "Authorization: Bearer <token>" localhost:8080/a/env | jq
 ```
 
-Example:
+`/help` looks roughly like:
 
 ```json
 {
@@ -47,79 +62,43 @@ Example:
 }
 ```
 
-## Endpoints
+### Main endpoints
 
-| Path | Auth | Description |
-|------|------|-------------|
-| `GET /` | no | Redirect to Swagger UI |
-| `GET /api-docs/*` | no | Swagger UI + openapi assets |
-| `GET /help` | no | JSON map of main routes |
-| `GET /health`, `/healthz` | no | Liveness-style health (`OK`) |
-| `GET /ready`, `/readyz` | no | Readiness (`Ready`) |
-| `GET /ping` | no | Simple `PONG` |
-| `GET /headers` | no | Request headers as JSON |
-| `GET /debug` | no | Hostname, client IP, headers, URI |
-| `GET /a/env` | **Bearer** | Process environment variables |
+| path | notes |
+|------|--------|
+| `GET /` | redirect to swagger |
+| `GET /api-docs/*` | swagger ui |
+| `GET /help` | json list of routes |
+| `GET /health` `/healthz` | returns `OK` |
+| `GET /ready` `/readyz` | returns `Ready` |
+| `GET /ping` | `PONG` |
+| `GET /headers` | request headers |
+| `GET /debug` | hostname / ip / headers / uri |
+| `GET /a/env` | env vars, **bearer auth** |
 
-### Auth (`/a/*`)
+### run image in k8 cluster:
 
-Routes under `/a/` require:
-
-```http
-Authorization: Bearer <token>
-```
-
-On startup the process generates a random token and logs it (and a ready-made curl). Token rotates every restart.
+You can run the pod in your cluster with the commands below. This will start a deployment and service but limited to cluster ip. If you want to expose with type loadbalancer you can do it yourself, I don't want you to get a bill from this.
 
 ```bash
-# token is printed in container logs as "Random Security Token"
-docker logs test-api 2>&1 | head -20
-
-curl -sS -H "Authorization: Bearer <token>" localhost:8080/a/env | jq
+# apply pod config
+kubectl -n default \
+    apply -f https://raw.githubusercontent.com/donkeyx/cluster-utils-api/master/k8s-cluster-util-apis.yml
 ```
 
-## Examples
+```bash
+kubectl get pods,svc -n default
+# service is cluster-utils-api-svc on 8080
+```
+
+### Now you can use port forwarding to curl your apis inside the cluster
 
 ```bash
-curl -sS localhost:8080/healthz
-# OK
+# in one window forward the ports to the service
+kubectl -n default port-forward svc/cluster-utils-api-svc 8080:8080
 
-curl -sS localhost:8080/ping
-# PONG
-
-curl -sS localhost:8080/headers | jq
+# then curl the service -> pod
 curl -sS localhost:8080/debug | jq
 ```
 
-## Run on Kubernetes
-
-The sample manifest starts a Deployment and ClusterIP Service (no LoadBalancer, so no surprise cloud bill).
-
-```bash
-kubectl -n default apply -f \
-  https://raw.githubusercontent.com/donkeyx/cluster-utils-api/master/k8s-cluster-util-apis.yml
-```
-
-```bash
-kubectl get pods,svc -n default -l type=api
-kubectl -n default port-forward svc/cluster-utils-api-svc 8080:8080
-```
-
-Then use the same local URLs as above (`http://localhost:8080/`, `/debug`, etc.).
-
-Manifest probes hit `/healthz` on container port **8080**. Image pull defaults to `donkeyx/cluster-utils-api:latest`.
-
-## Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8080` | HTTP listen port |
-
-## Images
-
-Multi-arch (`linux/amd64`, `linux/arm64`) images are published to Docker Hub and GHCR on tagged releases and default-branch builds. Pull either:
-
-```bash
-docker pull donkeyx/cluster-utils-api:latest
-docker pull ghcr.io/donkeyx/cluster-utils-api:latest
-```
+Probes in the manifest hit `/healthz` on container port 8080.

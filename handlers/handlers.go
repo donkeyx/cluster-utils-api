@@ -133,14 +133,14 @@ func HeadersHandler(c *gin.Context) {
 }
 
 // @Summary Get environment variables
-// @Description Get the env variables available to the api. This is behind auth
+// @Description Get the env variables available to the api. This is behind auth under /a/
 // @ID env
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} map[string]string
 // @Failure 401 {object} map[string]string
-// @Router /env [get]
-// @Param   Authorization header string true "With the bearer started" default(Bearer )
+// @Router /a/env [get]
+// @Param Authorization header string true "Bearer token from app logs" default(Bearer )
 func EnvHandler(c *gin.Context) {
 	envVariables, _ := json.Marshal(GetEnvironmentVariables())
 	c.Data(http.StatusOK, "application/json", envVariables)

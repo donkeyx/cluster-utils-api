@@ -3,6 +3,10 @@
 // @description This is a util api which lots of endpoints making it easy to test routing/ingress/egress
 // @host localhost:8080
 // @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and the token from the app logs on startup.
 
 package main
 
