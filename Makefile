@@ -1,13 +1,13 @@
 # Variables
 BINARY_PATH := ./bin
 BINARY_NAME := cu-api
-VERSION := $(shell git describe --tags)
-GIT_HASH := $(shell git rev-parse --short HEAD)
+VERSION := $(shell git describe --tags 2>/dev/null || echo dev)
+GIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE := $(shell date)
 BUILD_FLAGS := -ldflags="-w -s -X main.Version=$(VERSION) -X main.GitHash=$(GIT_HASH)"
 
 # Phony targets
-.PHONY: all build test clean deps update build-all
+.PHONY: all build test clean deps tools update build-all
 
 # Targets
 all: clean deps test build-all
@@ -25,10 +25,15 @@ clean:
 	go clean
 	find $(BINARY_PATH) -type f ! -name 'keep' -delete
 
+# Reproducible: download locked modules only (used by Docker)
 deps:
-	go get -u ./...
+	go mod download
+
+# Local tooling (swagger regen, etc.)
+tools:
 	go install github.com/swaggo/swag/cmd/swag@latest
 
+# Explicit dependency upgrades (local / deliberate only)
 update:
 	go get -u ./...
 	go mod tidy
