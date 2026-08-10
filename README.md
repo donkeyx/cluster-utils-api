@@ -472,7 +472,8 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | `GET /ping` | `PONG` (not a kube probe) |
 | `GET /headers` | request headers |
 | `GET /debug` | hostname / ip / headers / uri |
-| `GET /metrics` | prometheus (OpenMetrics): request count/latency/in-flight + Go/process |
+| `GET /metrics` | prometheus **scrape** (OpenMetrics): request count/latency/in-flight + Go/process |
+| OTEL traces | **push** OTLP to Alloy/collector (not scrape) — see Observability |
 | `GET /status/:code` | respond with that http status (100-599) |
 | `GET /delay/:seconds` | sleep then 200 (cap `MAX_DELAY_SECONDS`, default 120) |
 | `ANY /echo` | bounce method / query / headers / body |
@@ -487,6 +488,70 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | `PORT` | `8080` | listen port |
 | `AUTH_TOKEN` | random each start | fixed bearer for `/a/*` if set |
 | `MAX_DELAY_SECONDS` | `120` (hard max 600) | cap for `/delay`, probe delays, proxy timeouts |
+
+---
+
+## Observability (metrics vs traces)
+
+Two different pipelines — don't mix them up:
+
+| Signal | How it leaves the app | Endpoint / protocol | Typical sink |
+|--------|----------------------|---------------------|--------------|
+| **Metrics** | **Scrape** (pull) | `GET /metrics` Prometheus/OpenMetrics | Alloy `prometheus.scrape` → Mimir/Prometheus |
+| **Traces** | **Push** | **OTLP** http/protobuf (default) or grpc | Alloy OTLP receiver → **Tempo** |
+| **Logs** | stdout JSON (zap) | not OTLP yet | Alloy/loki.source.kubernetes → Loki |
+
+Traces are **not** scraped. The app (or sidecar) **exports** spans to a collector. Grafana Alloy is the usual middle hop: receive OTLP → forward to Tempo.
+
+### Enable traces (OTLP push)
+
+No endpoint configured → tracing is a **no-op** (safe default). To send to Alloy in-cluster:
+
+```yaml
+env:
+  - name: OTEL_SERVICE_NAME
+    value: cluster-utils-api
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "alloy.observability.svc.cluster.local:4318"   # http/protobuf default
+  - name: OTEL_EXPORTER_OTLP_PROTOCOL
+    value: http/protobuf   # or grpc (often :4317)
+  - name: OTEL_EXPORTER_OTLP_INSECURE
+    value: "true"          # TLS off inside the mesh
+  # optional:
+  # - name: OTEL_TRACE_SAMPLE_RATIO
+  #   value: "1.0"
+  # - name: OTEL_SDK_DISABLED
+  #   value: "true"
+```
+
+What gets instrumented:
+
+- **Inbound HTTP** — Gin middleware (`otelgin`): one span per request, W3C `traceparent` extracted
+- **Outbound `/a/proxy`** — `otelhttp` client transport: child span + propagates context east-west
+
+So a north-south hit that proxies east-west shows as a **linked trace** in Tempo if both sides (or at least this hop) export OTLP.
+
+### Alloy sketch
+
+```hcl
+// metrics: scrape this app
+prometheus.scrape "cu_api" {
+  targets    = [{ __address__ = "cluster-utils-api-svc:8080" }]
+  metrics_path = "/metrics"
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// traces: receive OTLP push from the app
+otelcol.receiver.otlp "default" {
+  http { endpoint = "0.0.0.0:4318" }
+  grpc { endpoint = "0.0.0.0:4317" }
+  output { traces = [otelcol.exporter.otlp.tempo.input] }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client { endpoint = "tempo:4317" tls { insecure = true } }
+}
+```
 
 ---
 

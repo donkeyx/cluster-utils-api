@@ -10,16 +10,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/donkeyx/cluster-utils-api/handlers"
 	"github.com/donkeyx/cluster-utils-api/middleware"
+	"github.com/donkeyx/cluster-utils-api/otelsetup"
 	"github.com/donkeyx/cluster-utils-api/routes"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -39,8 +43,25 @@ func main() {
 	handlers.SetBuildInfo(Version, GitHash)
 	handlers.InitProbesFromEnv()
 
+	// Traces: OTLP *push* to Alloy/collector (not scraped). No-op if endpoint unset.
+	ctx := context.Background()
+	otelShutdown, err := otelsetup.Init(ctx, "cluster-utils-api", Version, logger)
+	if err != nil {
+		logger.Fatal("otel init failed", zap.Error(err))
+	}
+	defer func() {
+		shCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := otelShutdown(shCtx); err != nil {
+			logger.Warn("otel shutdown", zap.Error(err))
+		}
+	}()
+
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	// Order: create span → metrics → logs → recover
+	r.Use(otelgin.Middleware("cluster-utils-api"))
+	r.Use(handlers.MetricsMiddleware())
 	r.Use(middleware.LoggerMiddleware(logger))
 	r.Use(gin.Recovery())
 

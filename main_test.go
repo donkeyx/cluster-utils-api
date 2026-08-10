@@ -23,6 +23,8 @@ func setupTestRouter(token string) *gin.Engine {
 	// reset to known defaults for tests (env may not be set)
 	resetProbesForTest()
 	r := gin.New()
+	// same order as main (otel no-op without endpoint)
+	r.Use(handlers.MetricsMiddleware())
 	logger := setupLogger()
 	routes.SetupRouter(logger, token, r)
 	return r
@@ -308,6 +310,7 @@ func TestProxyHopToSelf(t *testing.T) {
 	handlers.InitProbesFromEnv()
 	resetProbesForTest()
 	r := gin.New()
+	r.Use(handlers.MetricsMiddleware())
 	logger := setupLogger()
 	routes.SetupRouter(logger, token, r)
 

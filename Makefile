@@ -49,6 +49,12 @@ update:
 	go get github.com/swaggo/gin-swagger@latest
 	go get github.com/swaggo/swag@latest
 	go get go.uber.org/zap@latest
+	go get go.opentelemetry.io/otel@latest
+	go get go.opentelemetry.io/otel/sdk@latest
+	go get go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@latest
+	go get go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc@latest
+	go get go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin@latest
+	go get go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp@latest
 	go get golang.org/x/net@latest
 	go get golang.org/x/crypto@latest
 	go get golang.org/x/sys@latest

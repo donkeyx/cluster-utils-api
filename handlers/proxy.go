@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // hop-by-hop headers we never copy outbound
@@ -171,7 +172,11 @@ func ProxyHandler(c *gin.Context) {
 	hostname, _ := os.Hostname()
 	outReq.Header.Add("X-Cu-Proxy-Hop", hostname)
 
-	client := &http.Client{Timeout: time.Duration(timeout * float64(time.Second))}
+	// otelhttp propagates W3C trace context east-west and creates a client span
+	client := &http.Client{
+		Timeout:   time.Duration(timeout * float64(time.Second)),
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
 	start := time.Now()
 	resp, err := client.Do(outReq)
 	elapsed := time.Since(start)
