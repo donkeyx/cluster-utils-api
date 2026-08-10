@@ -102,20 +102,50 @@ That matches what kube expects: spam startup until it works, then stop and only 
 | `ok` | 200 |
 | `fail` | 503 |
 | `delay` | 200 (same as ok — use with `delaySeconds` > probe `timeoutSeconds` to force **timeouts**) |
+| `flap` | alternates **ok / fail** (see below) |
 
 `delaySeconds` is always applied on live/ready (capped at 30s). On startup it applies until latched; once latched answers are immediate.
+
+### Flap mode
+
+For watching kube react to flapping readiness / restart thrash on liveness:
+
+| knob | meaning |
+|------|---------|
+| `flapSeconds` | wall-clock half-period: **ok for N sec, fail for N sec**, repeat (default **5** if unset) |
+| `flapEvery` | if set (>0), **every Nth request fails** instead of using the clock (nice for scripts/tests) |
+
+```bash
+# ready flaps every 2 requests
+curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"ready":{"mode":"flap","flapEvery":2}}' localhost:8080/a/control/probes | jq
+
+# ready flaps on a 3s timer (3s ok, 3s fail, …)
+curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"ready":{"mode":"flap","flapSeconds":3}}' localhost:8080/a/control/probes | jq
+
+# watch phase
+curl -sS -H "Authorization: Bearer $TOKEN" localhost:8080/a/control/probes | jq '{ready, readyFlapPhase}'
+```
+
+On **startup**, flap only applies **before** the latch; an ok phase can still latch and then stay started (same as real init eventually finishing).
 
 ### Seed from env (steady state at deploy)
 
 | env | default | notes |
 |-----|---------|--------|
-| `LIVE_MODE` / `HEALTHY_MODE` / `HEALTHY` | ok | `false`/`fail` → live 503 |
+| `LIVE_MODE` / `HEALTHY_MODE` / `HEALTHY` | ok | `false`/`fail`/`flap` |
 | `LIVE_DELAY` / `HEALTHY_DELAY` | 0 | seconds before live answers |
+| `LIVE_FLAP_SECONDS` | 5 when mode=flap | half-period for time flap |
+| `LIVE_FLAP_EVERY` | 0 | every Nth request fails if set |
 | `READY_MODE` / `READY` | ok | |
 | `READY_DELAY` | 0 | |
+| `READY_FLAP_SECONDS` | 5 when mode=flap | |
+| `READY_FLAP_EVERY` | 0 | |
 | `STARTUP_MODE` / `STARTUP` | ok | |
 | `STARTUP_DELAY` | 0 | per-request sleep while not latched |
 | `STARTUP_BOOT_DELAY` | 0 | wall clock from start before first success allowed |
+| `STARTUP_FLAP_SECONDS` / `STARTUP_FLAP_EVERY` | | flap before latch only |
 
 ### Flip at runtime (no redeploy)
 
@@ -128,7 +158,7 @@ curl -sS -H "Authorization: Bearer $TOKEN" localhost:8080/a/control/probes | jq
 # write (partial update)
 curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{
-    "ready":   {"mode":"fail","delaySeconds":0},
+    "ready":   {"mode":"flap","flapSeconds":5},
     "live":    {"mode":"ok","delaySeconds":0},
     "startup": {"mode":"ok","delaySeconds":0,"bootDelaySeconds":5},
     "resetStartupLatch": true

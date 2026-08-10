@@ -16,7 +16,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Current live/ready/startup config + startup latch + uptime",
+                "description": "Current live/ready/startup config + startup latch + flap phase + uptime",
                 "produces": [
                     "application/json"
                 ],
@@ -46,7 +46,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Partial update of live/ready/startup. Use resetStartupLatch to re-run cold start without restarting the process.",
+                "description": "Partial update of live/ready/startup. resetStartupLatch re-runs cold start without restarting the process.",
                 "consumes": [
                     "application/json"
                 ],
@@ -331,7 +331,7 @@
         },
         "/livez": {
             "get": {
-                "description": "Kube liveness style. 200 = process fine; 503 = kube will restart. Config via LIVE_MODE/LIVE_DELAY or /a/control/probes. Aliases: /healthz /health",
+                "description": "Kube liveness. 200 = fine; 503 = restart. Modes: ok|fail|delay|flap. LIVE_* env or /a/control/probes. Aliases: /healthz /health",
                 "produces": [
                     "text/plain"
                 ],
@@ -340,7 +340,7 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "one-shot force fail with 0/false (curl only; kube does not send this)",
+                        "description": "one-shot force fail with 0/false (curl only)",
                         "name": "ok",
                         "in": "query"
                     }
@@ -399,7 +399,7 @@
         },
         "/readyz": {
             "get": {
-                "description": "Kube readiness style. 200 = take traffic; 503 = drop from Service endpoints (no restart). READY_MODE/READY_DELAY or control API. Alias: /ready",
+                "description": "Kube readiness. 200 = take traffic; 503 = leave Service endpoints. Modes: ok|fail|delay|flap. Alias: /ready",
                 "produces": [
                     "text/plain"
                 ],
@@ -431,7 +431,7 @@
         },
         "/startupz": {
             "get": {
-                "description": "Real startup semantics: fails until boot delay elapses, then latches success until process restart or resetStartupLatch. After latch, always 200 (fast) so kube stops startup probes. Mode=fail never latches.",
+                "description": "Cold start latch: 503 until bootDelay, then sticky 200. mode=fail never latches. mode=flap oscillates until a success latches (or forever if you only hit fail phases — use flap carefully here).",
                 "produces": [
                     "text/plain"
                 ],
@@ -507,15 +507,22 @@
             "type": "object",
             "properties": {
                 "bootDelaySeconds": {
-                    "description": "Startup only: wall-clock seconds from process start before a success is allowed.\nSimulates real cold start — kube keeps hitting startup until this elapses (or control forces ok).",
+                    "description": "Startup only: wall-clock seconds from process start before a success is allowed.",
                     "type": "number"
                 },
                 "delaySeconds": {
                     "description": "sleep before answering (0–30)",
                     "type": "number"
                 },
+                "flapEvery": {
+                    "type": "integer"
+                },
+                "flapSeconds": {
+                    "description": "Flap (mode=flap):\n  flapSeconds — wall-clock half-period: ok for N sec, fail for N sec, repeat (default 5).\n  flapEvery   — if \u003e 0, every Nth request fails instead of using the clock (handy for tests).",
+                    "type": "number"
+                },
                 "mode": {
-                    "description": "ok | fail | delay",
+                    "description": "ok | fail | delay | flap",
                     "type": "string"
                 }
             }
@@ -526,17 +533,26 @@
                 "live": {
                     "$ref": "#/definitions/handlers.ProbeConfig"
                 },
+                "liveFlapPhase": {
+                    "description": "Which half of a time-based flap we are in right now (ok|fail|n/a).",
+                    "type": "string"
+                },
                 "ready": {
                     "$ref": "#/definitions/handlers.ProbeConfig"
                 },
+                "readyFlapPhase": {
+                    "type": "string"
+                },
                 "startup": {
                     "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "startupFlapPhase": {
+                    "type": "string"
                 },
                 "startupLatched": {
                     "type": "boolean"
                 },
                 "startupWouldPass": {
-                    "description": "True when startup would succeed *right now* (after boot delay / latch rules).",
                     "type": "boolean"
                 },
                 "uptimeSeconds": {
@@ -554,7 +570,6 @@
                     "$ref": "#/definitions/handlers.ProbeConfig"
                 },
                 "resetStartupLatch": {
-                    "description": "Clear the startup latch so the next checks behave like a fresh process again.",
                     "type": "boolean"
                 },
                 "startup": {

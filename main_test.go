@@ -104,6 +104,30 @@ func TestReadyFailViaControl(t *testing.T) {
 	assert.Equal(t, "not ready", rr2.Body.String())
 }
 
+func TestReadyFlapEvery(t *testing.T) {
+	token := "tok"
+	r := setupTestRouter(token)
+
+	// every 2nd request fails
+	body := `{"ready":{"mode":"flap","delaySeconds":0,"flapEvery":2}}`
+	req := httptest.NewRequest(http.MethodPut, "/a/control/probes", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// hit 1 ok, hit 2 fail, hit 3 ok, hit 4 fail
+	codes := make([]int, 0, 4)
+	for i := 0; i < 4; i++ {
+		reqN := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+		rrN := httptest.NewRecorder()
+		r.ServeHTTP(rrN, reqN)
+		codes = append(codes, rrN.Code)
+	}
+	assert.Equal(t, []int{200, 503, 200, 503}, codes)
+}
+
 func TestStartupLatchAndBootDelay(t *testing.T) {
 	token := "tok"
 	r := setupTestRouter(token)

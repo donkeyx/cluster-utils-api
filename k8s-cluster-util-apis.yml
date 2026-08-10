@@ -57,6 +57,11 @@ spec:
             # fail readiness (pod stays up, leaves Service endpoints)
             # - name: READY_MODE
             #   value: "fail"
+            # flap readiness (in/out of endpoints)
+            # - name: READY_MODE
+            #   value: "flap"
+            # - name: READY_FLAP_SECONDS
+            #   value: "5"
             # slow readiness → probe timeout (timeoutSeconds: 1)
             # - name: READY_MODE
             #   value: "delay"
@@ -65,6 +70,11 @@ spec:
             # fail liveness → restarts
             # - name: LIVE_MODE
             #   value: "fail"
+            # flap liveness (restart thrash — careful)
+            # - name: LIVE_MODE
+            #   value: "flap"
+            # - name: LIVE_FLAP_SECONDS
+            #   value: "10"
             # - name: AUTH_TOKEN
             #   value: "fixed-token-for-tests"
           resources:
