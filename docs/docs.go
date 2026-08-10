@@ -142,29 +142,18 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Auth required (use Authorize lock: \"Bearer dev\"). North→south hits this pod; this pod calls url east-west. Response wrap includes upstream status, headers, and body. Try GET with url=https://httpbin.org/get or POST body example. Open proxy is SSRF — keep behind bearer.",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Auth: top-right Authorize with \"Bearer dev\". Simple query-only hop (no body — browsers forbid GET+body). Default url hits httpbin so you see method/headers echoed. Prefer POST /a/proxy for full JSON control.",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Proxy / hop to another service (auth)",
-                "operationId": "proxy",
+                "summary": "Proxy GET hop (auth)",
+                "operationId": "proxyGet",
                 "parameters": [
-                    {
-                        "description": "POST JSON body (preferred for full control). Example hits httpbin so you see headers/method echoed.",
-                        "name": "body",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.ProxyRequest"
-                        }
-                    },
                     {
                         "type": "string",
                         "default": "https://httpbin.org/get",
                         "example": "https://httpbin.org/get",
-                        "description": "GET form: absolute URL to fetch",
+                        "description": "absolute URL to fetch",
                         "name": "url",
                         "in": "query"
                     },
@@ -172,7 +161,7 @@ const docTemplate = `{
                         "type": "string",
                         "default": "GET",
                         "example": "GET",
-                        "description": "GET form: HTTP method",
+                        "description": "HTTP method for the outbound call",
                         "name": "method",
                         "in": "query"
                     },
@@ -180,7 +169,7 @@ const docTemplate = `{
                         "type": "number",
                         "default": 15,
                         "example": 15,
-                        "description": "GET form: outbound timeout",
+                        "description": "outbound timeout seconds",
                         "name": "timeoutSeconds",
                         "in": "query"
                     }
@@ -226,47 +215,24 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Auth required (use Authorize lock: \"Bearer dev\"). North→south hits this pod; this pod calls url east-west. Response wrap includes upstream status, headers, and body. Try GET with url=https://httpbin.org/get or POST body example. Open proxy is SSRF — keep behind bearer.",
+                "description": "Auth: top-right Authorize with \"Bearer dev\". Full JSON control — example body calls https://httpbin.org/get so the wrap shows upstream status/headers/body. North→south then east-west; SSRF if left unauthenticated.",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Proxy / hop to another service (auth)",
-                "operationId": "proxy",
+                "summary": "Proxy POST hop (auth)",
+                "operationId": "proxyPost",
                 "parameters": [
                     {
-                        "description": "POST JSON body (preferred for full control). Example hits httpbin so you see headers/method echoed.",
+                        "description": "proxy request",
                         "name": "body",
                         "in": "body",
+                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/handlers.ProxyRequest"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "default": "https://httpbin.org/get",
-                        "example": "https://httpbin.org/get",
-                        "description": "GET form: absolute URL to fetch",
-                        "name": "url",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "GET",
-                        "example": "GET",
-                        "description": "GET form: HTTP method",
-                        "name": "method",
-                        "in": "query"
-                    },
-                    {
-                        "type": "number",
-                        "default": 15,
-                        "example": 15,
-                        "description": "GET form: outbound timeout",
-                        "name": "timeoutSeconds",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -871,7 +837,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Use the top-right Authorize lock only (not a per-operation Authorization field). Value MUST be exactly: Bearer \u003ctoken\u003e  e.g. local: Bearer dev",
+            "description": "Top-right Authorize lock only. Value MUST be: Bearer \u003ctoken\u003e  e.g. Bearer dev",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -881,12 +847,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "2.0",
+	Version:          "2.5.0",
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "Cluster Util API",
-	Description:      "Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster. Swagger \"Try it out\" uses the host you opened the UI on (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize with Bearer token from logs or AUTH_TOKEN.",
+	Title:            "Cluster Utils API",
+	Description:      "HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.\n\n• Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev\n• Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes\n• Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)\n• Pair: https://github.com/donkeyx/cluster-utils",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

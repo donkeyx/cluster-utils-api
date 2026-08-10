@@ -1,11 +1,16 @@
-// @title Cluster Util API
-// @version 2.0
-// @description Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster. Swagger "Try it out" uses the host you opened the UI on (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize with Bearer token from logs or AUTH_TOKEN.
+// @title Cluster Utils API
+// @version 2.5.0
+// @description HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.
+// @description
+// @description • Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev
+// @description • Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes
+// @description • Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)
+// @description • Pair: https://github.com/donkeyx/cluster-utils
 // @BasePath /
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Use the top-right Authorize lock only (not a per-operation Authorization field). Value MUST be exactly: Bearer <token>  e.g. local: Bearer dev
+// @description Top-right Authorize lock only. Value MUST be: Bearer <token>  e.g. Bearer dev
 
 package main
 

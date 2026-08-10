@@ -129,12 +129,15 @@ definitions:
     type: object
 info:
   contact: {}
-  description: Drop-in HTTP util for testing probes, routing, headers, env/params
-    and more in a cluster. Swagger "Try it out" uses the host you opened the UI on
-    (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize
-    with Bearer token from logs or AUTH_TOKEN.
-  title: Cluster Util API
-  version: "2.0"
+  description: |-
+    HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.
+
+    • Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev
+    • Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes
+    • Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)
+    • Pair: https://github.com/donkeyx/cluster-utils
+  title: Cluster Utils API
+  version: 2.5.0
 paths:
   /a/control/probes:
     get:
@@ -220,34 +223,25 @@ paths:
       summary: Get environment variables
   /a/proxy:
     get:
-      consumes:
-      - application/json
-      description: 'Auth required (use Authorize lock: "Bearer dev"). North→south
-        hits this pod; this pod calls url east-west. Response wrap includes upstream
-        status, headers, and body. Try GET with url=https://httpbin.org/get or POST
-        body example. Open proxy is SSRF — keep behind bearer.'
-      operationId: proxy
+      description: 'Auth: top-right Authorize with "Bearer dev". Simple query-only
+        hop (no body — browsers forbid GET+body). Default url hits httpbin so you
+        see method/headers echoed. Prefer POST /a/proxy for full JSON control.'
+      operationId: proxyGet
       parameters:
-      - description: POST JSON body (preferred for full control). Example hits httpbin
-          so you see headers/method echoed.
-        in: body
-        name: body
-        schema:
-          $ref: '#/definitions/handlers.ProxyRequest'
       - default: https://httpbin.org/get
-        description: 'GET form: absolute URL to fetch'
+        description: absolute URL to fetch
         example: https://httpbin.org/get
         in: query
         name: url
         type: string
       - default: GET
-        description: 'GET form: HTTP method'
+        description: HTTP method for the outbound call
         example: GET
         in: query
         name: method
         type: string
       - default: 15
-        description: 'GET form: outbound timeout'
+        description: outbound timeout seconds
         example: 15
         in: query
         name: timeoutSeconds
@@ -279,40 +273,21 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Proxy / hop to another service (auth)
+      summary: Proxy GET hop (auth)
     post:
       consumes:
       - application/json
-      description: 'Auth required (use Authorize lock: "Bearer dev"). North→south
-        hits this pod; this pod calls url east-west. Response wrap includes upstream
-        status, headers, and body. Try GET with url=https://httpbin.org/get or POST
-        body example. Open proxy is SSRF — keep behind bearer.'
-      operationId: proxy
+      description: 'Auth: top-right Authorize with "Bearer dev". Full JSON control
+        — example body calls https://httpbin.org/get so the wrap shows upstream status/headers/body.
+        North→south then east-west; SSRF if left unauthenticated.'
+      operationId: proxyPost
       parameters:
-      - description: POST JSON body (preferred for full control). Example hits httpbin
-          so you see headers/method echoed.
+      - description: proxy request
         in: body
         name: body
+        required: true
         schema:
           $ref: '#/definitions/handlers.ProxyRequest'
-      - default: https://httpbin.org/get
-        description: 'GET form: absolute URL to fetch'
-        example: https://httpbin.org/get
-        in: query
-        name: url
-        type: string
-      - default: GET
-        description: 'GET form: HTTP method'
-        example: GET
-        in: query
-        name: method
-        type: string
-      - default: 15
-        description: 'GET form: outbound timeout'
-        example: 15
-        in: query
-        name: timeoutSeconds
-        type: number
       produces:
       - application/json
       responses:
@@ -340,7 +315,7 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Proxy / hop to another service (auth)
+      summary: Proxy POST hop (auth)
   /debug:
     get:
       description: Hostname, client ip, headers, uri — good for routing tests
@@ -643,8 +618,8 @@ paths:
       summary: Version / build info
 securityDefinitions:
   BearerAuth:
-    description: 'Use the top-right Authorize lock only (not a per-operation Authorization
-      field). Value MUST be exactly: Bearer <token>  e.g. local: Bearer dev'
+    description: 'Top-right Authorize lock only. Value MUST be: Bearer <token>  e.g.
+      Bearer dev'
     in: header
     name: Authorization
     type: apiKey
