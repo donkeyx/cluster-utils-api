@@ -190,8 +190,6 @@ func sleepDelay(seconds float64) {
 // @Success 200 {string} string "ok"
 // @Failure 503 {string} string "unhealthy"
 // @Router /livez [get]
-// @Router /healthz [get]
-// @Router /health [get]
 func LiveHandler(c *gin.Context) {
 	probes.mu.RLock()
 	cfg := probes.live
@@ -211,7 +209,6 @@ func HealthzHandler(c *gin.Context) { LiveHandler(c) }
 // @Success 200 {string} string "ready"
 // @Failure 503 {string} string "not ready"
 // @Router /readyz [get]
-// @Router /ready [get]
 func ReadyHandler(c *gin.Context) {
 	probes.mu.RLock()
 	cfg := probes.ready
@@ -228,7 +225,6 @@ func ReadyzHandler(c *gin.Context) { ReadyHandler(c) }
 // @Success 200 {string} string "started"
 // @Failure 503 {string} string "starting"
 // @Router /startupz [get]
-// @Router /startup [get]
 func StartupHandler(c *gin.Context) {
 	// snapshot under read lock, sleep without holding the lock
 	probes.mu.RLock()

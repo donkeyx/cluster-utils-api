@@ -15,6 +15,91 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/a/control/probes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Current live/ready/startup config + startup latch + uptime",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get probe control state",
+                "operationId": "getProbes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProbeSnapshot"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Partial update of live/ready/startup. Use resetStartupLatch to re-run cold start without restarting the process.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Update probe control state",
+                "operationId": "putProbes",
+                "parameters": [
+                    {
+                        "description": "probe update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProbeUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProbeSnapshot"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/a/env": {
             "get": {
                 "security": [
@@ -81,7 +166,7 @@ const docTemplate = `{
         },
         "/delay/{seconds}": {
             "get": {
-                "description": "Sleep N seconds (max 30) then return 200. Useful for timeout / slow upstream tests",
+                "description": "Sleep N seconds (max 30) then return 200. For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead",
                 "produces": [
                     "text/plain"
                 ],
@@ -229,82 +314,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/health": {
-            "get": {
-                "description": "Liveness style check. Fail with env HEALTHY=false or ?ok=0",
-                "produces": [
-                    "text/plain"
-                ],
-                "summary": "Get health",
-                "operationId": "health",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "set 0/false to force unhealthy",
-                        "name": "ok",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "same as ok",
-                        "name": "healthy",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "503": {
-                        "description": "Unhealthy",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/healthz": {
-            "get": {
-                "description": "Liveness style check. Fail with env HEALTHY=false or ?ok=0",
-                "produces": [
-                    "text/plain"
-                ],
-                "summary": "Get healthz",
-                "operationId": "healthz",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "set 0/false to force unhealthy",
-                        "name": "ok",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "same as ok",
-                        "name": "healthy",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "503": {
-                        "description": "Unhealthy",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
         "/help": {
             "get": {
                 "description": "Quick map of useful routes",
@@ -321,6 +330,38 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/livez": {
+            "get": {
+                "description": "Kube liveness style. 200 = process fine; 503 = kube will restart. Config via LIVE_MODE/LIVE_DELAY or /a/control/probes. Aliases: /healthz /health",
+                "produces": [
+                    "text/plain"
+                ],
+                "summary": "Liveness (livez)",
+                "operationId": "livez",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "one-shot force fail with 0/false (curl only; kube does not send this)",
+                        "name": "ok",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "unhealthy",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -346,7 +387,7 @@ const docTemplate = `{
         },
         "/ping": {
             "get": {
-                "description": "Simple alive check",
+                "description": "Simple alive check (not a kube probe — use /livez for that)",
                 "produces": [
                     "text/plain"
                 ],
@@ -362,37 +403,31 @@ const docTemplate = `{
                 }
             }
         },
-        "/ready": {
+        "/readyz": {
             "get": {
-                "description": "Readiness check. Fail with env READY=false or ?ok=0 so you can watch k8s/ECS kick the pod",
+                "description": "Kube readiness style. 200 = take traffic; 503 = drop from Service endpoints (no restart). READY_MODE/READY_DELAY or control API. Alias: /ready",
                 "produces": [
                     "text/plain"
                 ],
-                "summary": "Get ready",
-                "operationId": "ready",
+                "summary": "Readiness (readyz)",
+                "operationId": "readyz",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "set 0/false to force not ready",
+                        "description": "one-shot force fail (curl only)",
                         "name": "ok",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "same as ok",
-                        "name": "ready",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Ready",
+                        "description": "ready",
                         "schema": {
                             "type": "string"
                         }
                     },
                     "503": {
-                        "description": "Not Ready",
+                        "description": "not ready",
                         "schema": {
                             "type": "string"
                         }
@@ -400,37 +435,23 @@ const docTemplate = `{
                 }
             }
         },
-        "/readyz": {
+        "/startupz": {
             "get": {
-                "description": "Readiness check. Fail with env READY=false or ?ok=0",
+                "description": "Real startup semantics: fails until boot delay elapses, then latches success until process restart or resetStartupLatch. After latch, always 200 (fast) so kube stops startup probes. Mode=fail never latches.",
                 "produces": [
                     "text/plain"
                 ],
-                "summary": "Get readyz",
-                "operationId": "readyz",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "set 0/false to force not ready",
-                        "name": "ok",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "same as ok",
-                        "name": "ready",
-                        "in": "query"
-                    }
-                ],
+                "summary": "Startup (startupz)",
+                "operationId": "startupz",
                 "responses": {
                     "200": {
-                        "description": "Ready",
+                        "description": "started",
                         "schema": {
                             "type": "string"
                         }
                     },
                     "503": {
-                        "description": "Not Ready",
+                        "description": "starting",
                         "schema": {
                             "type": "string"
                         }
@@ -483,6 +504,67 @@ const docTemplate = `{
                             }
                         }
                     }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "handlers.ProbeConfig": {
+            "type": "object",
+            "properties": {
+                "bootDelaySeconds": {
+                    "description": "Startup only: wall-clock seconds from process start before a success is allowed.\nSimulates real cold start — kube keeps hitting startup until this elapses (or control forces ok).",
+                    "type": "number"
+                },
+                "delaySeconds": {
+                    "description": "sleep before answering (0–30)",
+                    "type": "number"
+                },
+                "mode": {
+                    "description": "ok | fail | delay",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.ProbeSnapshot": {
+            "type": "object",
+            "properties": {
+                "live": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "ready": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "startup": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "startupLatched": {
+                    "type": "boolean"
+                },
+                "startupWouldPass": {
+                    "description": "True when startup would succeed *right now* (after boot delay / latch rules).",
+                    "type": "boolean"
+                },
+                "uptimeSeconds": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.ProbeUpdate": {
+            "type": "object",
+            "properties": {
+                "live": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "ready": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "resetStartupLatch": {
+                    "description": "Clear the startup latch so the next checks behave like a fresh process again.",
+                    "type": "boolean"
+                },
+                "startup": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
                 }
             }
         }

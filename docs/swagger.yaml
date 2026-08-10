@@ -1,4 +1,49 @@
 basePath: /
+definitions:
+  handlers.ProbeConfig:
+    properties:
+      bootDelaySeconds:
+        description: |-
+          Startup only: wall-clock seconds from process start before a success is allowed.
+          Simulates real cold start — kube keeps hitting startup until this elapses (or control forces ok).
+        type: number
+      delaySeconds:
+        description: sleep before answering (0–30)
+        type: number
+      mode:
+        description: ok | fail | delay
+        type: string
+    type: object
+  handlers.ProbeSnapshot:
+    properties:
+      live:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      ready:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      startup:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      startupLatched:
+        type: boolean
+      startupWouldPass:
+        description: True when startup would succeed *right now* (after boot delay
+          / latch rules).
+        type: boolean
+      uptimeSeconds:
+        type: number
+    type: object
+  handlers.ProbeUpdate:
+    properties:
+      live:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      ready:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      resetStartupLatch:
+        description: Clear the startup latch so the next checks behave like a fresh
+          process again.
+        type: boolean
+      startup:
+        $ref: '#/definitions/handlers.ProbeConfig'
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -7,6 +52,61 @@ info:
   title: Cluster Util API
   version: "2.0"
 paths:
+  /a/control/probes:
+    get:
+      description: Current live/ready/startup config + startup latch + uptime
+      operationId: getProbes
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ProbeSnapshot'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get probe control state
+    put:
+      consumes:
+      - application/json
+      description: Partial update of live/ready/startup. Use resetStartupLatch to
+        re-run cold start without restarting the process.
+      operationId: putProbes
+      parameters:
+      - description: probe update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ProbeUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ProbeSnapshot'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update probe control state
   /a/env:
     get:
       description: Env dump so you can check secrets/configmaps/task params actually
@@ -52,8 +152,8 @@ paths:
       summary: Debug
   /delay/{seconds}:
     get:
-      description: Sleep N seconds (max 30) then return 200. Useful for timeout /
-        slow upstream tests
+      description: Sleep N seconds (max 30) then return 200. For probe timeouts prefer
+        LIVE/READY/STARTUP delaySeconds instead
       operationId: delay
       parameters:
       - description: seconds to sleep (max 30)
@@ -154,56 +254,6 @@ paths:
               type: string
             type: object
       summary: Get headers
-  /health:
-    get:
-      description: Liveness style check. Fail with env HEALTHY=false or ?ok=0
-      operationId: health
-      parameters:
-      - description: set 0/false to force unhealthy
-        in: query
-        name: ok
-        type: string
-      - description: same as ok
-        in: query
-        name: healthy
-        type: string
-      produces:
-      - text/plain
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: string
-        "503":
-          description: Unhealthy
-          schema:
-            type: string
-      summary: Get health
-  /healthz:
-    get:
-      description: Liveness style check. Fail with env HEALTHY=false or ?ok=0
-      operationId: healthz
-      parameters:
-      - description: set 0/false to force unhealthy
-        in: query
-        name: ok
-        type: string
-      - description: same as ok
-        in: query
-        name: healthy
-        type: string
-      produces:
-      - text/plain
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: string
-        "503":
-          description: Unhealthy
-          schema:
-            type: string
-      summary: Get healthz
   /help:
     get:
       description: Quick map of useful routes
@@ -218,6 +268,29 @@ paths:
               type: string
             type: object
       summary: Help
+  /livez:
+    get:
+      description: 'Kube liveness style. 200 = process fine; 503 = kube will restart.
+        Config via LIVE_MODE/LIVE_DELAY or /a/control/probes. Aliases: /healthz /health'
+      operationId: livez
+      parameters:
+      - description: one-shot force fail with 0/false (curl only; kube does not send
+          this)
+        in: query
+        name: ok
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: ok
+          schema:
+            type: string
+        "503":
+          description: unhealthy
+          schema:
+            type: string
+      summary: Liveness (livez)
   /metrics:
     get:
       description: Prometheus scrape endpoint
@@ -232,7 +305,7 @@ paths:
       summary: Prometheus metrics
   /ping:
     get:
-      description: Simple alive check
+      description: Simple alive check (not a kube probe — use /livez for that)
       operationId: ping
       produces:
       - text/plain
@@ -242,57 +315,46 @@ paths:
           schema:
             type: string
       summary: Get ping
-  /ready:
-    get:
-      description: Readiness check. Fail with env READY=false or ?ok=0 so you can
-        watch k8s/ECS kick the pod
-      operationId: ready
-      parameters:
-      - description: set 0/false to force not ready
-        in: query
-        name: ok
-        type: string
-      - description: same as ok
-        in: query
-        name: ready
-        type: string
-      produces:
-      - text/plain
-      responses:
-        "200":
-          description: Ready
-          schema:
-            type: string
-        "503":
-          description: Not Ready
-          schema:
-            type: string
-      summary: Get ready
   /readyz:
     get:
-      description: Readiness check. Fail with env READY=false or ?ok=0
+      description: 'Kube readiness style. 200 = take traffic; 503 = drop from Service
+        endpoints (no restart). READY_MODE/READY_DELAY or control API. Alias: /ready'
       operationId: readyz
       parameters:
-      - description: set 0/false to force not ready
+      - description: one-shot force fail (curl only)
         in: query
         name: ok
-        type: string
-      - description: same as ok
-        in: query
-        name: ready
         type: string
       produces:
       - text/plain
       responses:
         "200":
-          description: Ready
+          description: ready
           schema:
             type: string
         "503":
-          description: Not Ready
+          description: not ready
           schema:
             type: string
-      summary: Get readyz
+      summary: Readiness (readyz)
+  /startupz:
+    get:
+      description: 'Real startup semantics: fails until boot delay elapses, then latches
+        success until process restart or resetStartupLatch. After latch, always 200
+        (fast) so kube stops startup probes. Mode=fail never latches.'
+      operationId: startupz
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: started
+          schema:
+            type: string
+        "503":
+          description: starting
+          schema:
+            type: string
+      summary: Startup (startupz)
   /status/{code}:
     get:
       description: Respond with whatever http status you pass (100-599). Great for
