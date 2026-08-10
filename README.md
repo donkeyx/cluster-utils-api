@@ -121,6 +121,9 @@ is `200`, or check `podman logs cu-api | grep '"token"'`.
 **Host / port:** UI uses the host you opened. Override with  
 `?host=127.0.0.1:18080&scheme=http` if needed.
 
+**Theme:** dark by default (Swagger UI has no real dark mode built-in; we inject CSS).  
+Stock bright UI: `/api-docs/index.html?theme=light`.
+
 ---
 
 ## Quick start

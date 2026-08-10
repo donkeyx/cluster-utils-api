@@ -1,12 +1,15 @@
 package routes
 
 import (
-	"github.com/donkeyx/cluster-utils-api/docs"
-	"github.com/donkeyx/cluster-utils-api/handlers"
-	"github.com/donkeyx/cluster-utils-api/middleware"
+	"bytes"
+	_ "embed"
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/donkeyx/cluster-utils-api/docs"
+	"github.com/donkeyx/cluster-utils-api/handlers"
+	"github.com/donkeyx/cluster-utils-api/middleware"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -18,6 +21,11 @@ import (
 // swaggerInfoMu guards docs.SwaggerInfo Host/Schemes when serving the UI for different origins.
 var swaggerInfoMu sync.Mutex
 
+// darkCSS is injected into Swagger UI (gin-swagger has no first-class dark mode).
+//
+//go:embed swagger-dark.css
+var darkCSS []byte
+
 func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	// Middleware (otel / metrics / log / recover) is registered in main before this.
 
@@ -26,8 +34,8 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 		c.Redirect(http.StatusFound, "/api-docs/index.html")
 	})
 
-	// Swagger UI: persist Authorize token in the browser; host/scheme follow where you opened
-	// the page (so port-forward / docker / cluster DNS all work). Optional overrides:
+	// Swagger UI: persist Authorize token; host/scheme follow where you opened the page.
+	// Dark theme by default; ?theme=light for stock Swagger look.
 	//   /api-docs/index.html?host=my-svc:8080&scheme=http
 	r.GET("/api-docs/*any", swaggerHandler())
 
@@ -36,9 +44,6 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	r.GET("/metrics", handlers.PrometheusMetricsHandler())
 
 	// Kube-style probes (plus older aliases)
-	// live  = liveness  → restart on fail
-	// ready = readiness → leave Service endpoints on fail
-	// startup = cold start latch → kube only until first success
 	r.GET("/livez", handlers.LiveHandler)
 	r.GET("/healthz", handlers.HealthzHandler)
 	r.GET("/health", handlers.HealthHandler)
@@ -63,22 +68,26 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	authGroup.GET("/env", handlers.EnvHandler)
 	authGroup.GET("/control/probes", handlers.GetProbesHandler)
 	authGroup.PUT("/control/probes", handlers.PutProbesHandler)
-	// open /proxy would be SSRF (scan cluster, hit metadata, etc.)
-	// Separate handlers so Swagger GET has no body (browsers reject GET+body).
 	authGroup.GET("/proxy", handlers.ProxyGetHandler)
 	authGroup.POST("/proxy", handlers.ProxyPostHandler)
 }
 
 func swaggerHandler() gin.HandlerFunc {
-	// Empty host in the generated spec would also work; we set Host from the request
-	// so the Swagger top bar shows a real target and Try it out hits the right place.
 	handler := ginSwagger.WrapHandler(
 		swaggerFiles.Handler,
 		ginSwagger.PersistAuthorization(true),
 		ginSwagger.DefaultModelsExpandDepth(-1),
+		ginSwagger.DocExpansion("list"),
 	)
 
 	return func(c *gin.Context) {
+		// Serve our dark stylesheet (relative to /api-docs/)
+		any := c.Param("any")
+		if any == "/swagger-dark.css" || any == "swagger-dark.css" || strings.HasSuffix(any, "swagger-dark.css") {
+			c.Data(http.StatusOK, "text/css; charset=utf-8", darkCSS)
+			return
+		}
+
 		host := strings.TrimSpace(c.Query("host"))
 		if host == "" {
 			host = c.Request.Host
@@ -93,12 +102,69 @@ func swaggerHandler() gin.HandlerFunc {
 			}
 		}
 
+		light := strings.EqualFold(c.Query("theme"), "light")
+
 		// Serialize updates to the global SwaggerInfo used when doc.json is generated.
 		swaggerInfoMu.Lock()
 		docs.SwaggerInfo.Host = host
 		docs.SwaggerInfo.Schemes = []string{scheme}
 		docs.SwaggerInfo.BasePath = "/"
+
+		// Capture HTML for index so we can inject dark CSS (stock swagger is bright white).
+		if !light && isSwaggerIndex(any) {
+			buf := &responseCapture{ResponseWriter: c.Writer, body: &bytes.Buffer{}, status: http.StatusOK}
+			c.Writer = buf
+			handler(c)
+			html := buf.body.String()
+			inject := `<link rel="stylesheet" type="text/css" href="./swagger-dark.css">` +
+				`<meta name="color-scheme" content="dark">`
+			if strings.Contains(html, "</head>") {
+				html = strings.Replace(html, "</head>", inject+"</head>", 1)
+			} else {
+				html = inject + html
+			}
+			c.Writer = buf.ResponseWriter
+			// Drop content-length from capture; write fresh body
+			for k, vv := range buf.Header() {
+				if strings.EqualFold(k, "Content-Length") {
+					continue
+				}
+				for _, v := range vv {
+					c.Writer.Header().Add(k, v)
+				}
+			}
+			c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+			c.Writer.WriteHeader(buf.status)
+			_, _ = c.Writer.Write([]byte(html))
+			swaggerInfoMu.Unlock()
+			return
+		}
+
 		handler(c)
 		swaggerInfoMu.Unlock()
 	}
+}
+
+func isSwaggerIndex(any string) bool {
+	any = strings.TrimPrefix(any, "/")
+	return any == "" || any == "index.html" || strings.HasSuffix(any, "/index.html")
+}
+
+// responseCapture buffers the handler response so we can rewrite HTML.
+type responseCapture struct {
+	gin.ResponseWriter
+	body   *bytes.Buffer
+	status int
+}
+
+func (w *responseCapture) Write(b []byte) (int, error) {
+	return w.body.Write(b)
+}
+
+func (w *responseCapture) WriteString(s string) (int, error) {
+	return w.body.WriteString(s)
+}
+
+func (w *responseCapture) WriteHeader(statusCode int) {
+	w.status = statusCode
 }
