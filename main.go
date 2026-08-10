@@ -5,7 +5,7 @@
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Paste: Bearer <token>  (token from container logs, or AUTH_TOKEN env). Example: Bearer dev
+// @description Click Authorize (lock icon). Value MUST be: Bearer <token>  including the word Bearer and a space. Example for local podman: Bearer dev. Token only (without Bearer) will 401.
 
 package main
 

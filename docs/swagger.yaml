@@ -158,16 +158,10 @@ paths:
       summary: Update probe control state
   /a/env:
     get:
-      description: Env dump so you can check secrets/configmaps/task params actually
-        landed. Behind auth under /a/
+      description: 'Env dump so you can check secrets/configmaps/task params actually
+        landed. Behind auth under /a/. Use the Authorize button (value: Bearer &lt;token&gt;)
+        — do not leave a separate Authorization param empty.'
       operationId: env
-      parameters:
-      - default: Bearer
-        description: Bearer token from app logs
-        in: header
-        name: Authorization
-        required: true
-        type: string
       produces:
       - application/json
       responses:
@@ -208,12 +202,6 @@ paths:
       - description: HTTP method for GET form (default GET)
         in: query
         name: method
-        type: string
-      - default: Bearer
-        description: Bearer token
-        in: header
-        name: Authorization
-        required: true
         type: string
       produces:
       - application/json
@@ -264,12 +252,6 @@ paths:
       - description: HTTP method for GET form (default GET)
         in: query
         name: method
-        type: string
-      - default: Bearer
-        description: Bearer token
-        in: header
-        name: Authorization
-        required: true
         type: string
       produces:
       - application/json
@@ -552,8 +534,9 @@ paths:
       summary: Version / build info
 securityDefinitions:
   BearerAuth:
-    description: 'Paste: Bearer <token>  (token from container logs, or AUTH_TOKEN
-      env). Example: Bearer dev'
+    description: 'Click Authorize (lock icon). Value MUST be: Bearer <token>  including
+      the word Bearer and a space. Example for local podman: Bearer dev. Token only
+      (without Bearer) will 401.'
     in: header
     name: Authorization
     type: apiKey

@@ -74,7 +74,6 @@ type ProxyRequest struct {
 // @Failure 502 {object} map[string]interface{}
 // @Router /a/proxy [post]
 // @Router /a/proxy [get]
-// @Param Authorization header string true "Bearer token" default(Bearer )
 func ProxyHandler(c *gin.Context) {
 	var req ProxyRequest
 

@@ -107,22 +107,12 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/",
+                "description": "Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/. Use the Authorize button (value: Bearer \u0026lt;token\u0026gt;) — do not leave a separate Authorization param empty.",
                 "produces": [
                     "application/json"
                 ],
                 "summary": "Get environment variables",
                 "operationId": "env",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "default": "Bearer",
-                        "description": "Bearer token from app logs",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -182,14 +172,6 @@ const docTemplate = `{
                         "description": "HTTP method for GET form (default GET)",
                         "name": "method",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "Bearer",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -263,14 +245,6 @@ const docTemplate = `{
                         "description": "HTTP method for GET form (default GET)",
                         "name": "method",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "Bearer",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -793,7 +767,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Paste: Bearer \u003ctoken\u003e  (token from container logs, or AUTH_TOKEN env). Example: Bearer dev",
+            "description": "Click Authorize (lock icon). Value MUST be: Bearer \u003ctoken\u003e  including the word Bearer and a space. Example for local podman: Bearer dev. Token only (without Bearer) will 401.",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

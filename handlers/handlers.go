@@ -96,14 +96,13 @@ func HeadersHandler(c *gin.Context) {
 }
 
 // @Summary Get environment variables
-// @Description Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/
+// @Description Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/. Use the Authorize button (value: Bearer &lt;token&gt;) — do not leave a separate Authorization param empty.
 // @ID env
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /a/env [get]
-// @Param Authorization header string true "Bearer token from app logs" default(Bearer )
 func EnvHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, GetEnvironmentVariables())
 }
