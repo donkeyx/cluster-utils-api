@@ -501,11 +501,44 @@ Two different pipelines — don't mix them up:
 | **Traces** | **Push** | **OTLP** http/protobuf (default) or grpc | Alloy OTLP receiver → **Tempo** |
 | **Logs** | stdout JSON (zap) | not OTLP yet | Alloy/loki.source.kubernetes → Loki |
 
-Traces are **not** scraped. The app (or sidecar) **exports** spans to a collector. Grafana Alloy is the usual middle hop: receive OTLP → forward to Tempo.
+Traces are **not** scraped. The app **exports** spans to a collector. Grafana Alloy is the usual middle hop: receive OTLP → forward to Tempo.
+
+### How end-to-end tracing works (Istio / meshes)
+
+Normal path in 2024–26 stacks:
+
+1. **Edge / sidecar (Envoy, Istio, Linkerd)** accepts the request and either  
+   - continues an existing **W3C `traceparent`**, or  
+   - creates/propagates **B3** (`x-b3-traceid`, …) if the mesh is still on Zipkin-style config  
+2. **App SDKs** extract that context, create child spans, inject the same headers on outbound calls  
+3. App **pushes** spans via OTLP → Alloy → Tempo  
+4. **`x-request-id`** (Envoy/Istio) is a **separate correlation id** used in access logs — it is *not* the OTEL trace id. Join them by putting `x-request-id` on the span (we do) and echoing both on the response.
+
+| Header | What it is | We do |
+|--------|------------|--------|
+| `traceparent` / `tracestate` | W3C trace context (modern default) | extract + inject |
+| `x-b3-*` / `b3` | Zipkin B3 (common with Istio) | extract + inject |
+| `uber-trace-id` | Jaeger | extract + inject |
+| `x-request-id` | Envoy request id (logs) | span attr `http.request_id` + response echo |
+| `x-correlation-id` | app/gateway variant | span attr + echo if present |
+
+So: we **match** mesh traffic by speaking **W3C + B3 + Jaeger**, and we **use** Istio’s request id as an attribute / response header so you can jump from Envoy logs to Tempo (`X-Trace-Id`).
+
+### Defaults (when env is unset)
+
+| Variable | Default here |
+|----------|----------------|
+| export / SDK | **disabled (no-op)** until `OTEL_EXPORTER_OTLP_ENDPOINT` (or traces endpoint) is set |
+| `OTEL_SERVICE_NAME` | `cluster-utils-api` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` (port **4318** on Alloy) |
+| `OTEL_TRACE_SAMPLE_RATIO` | `1.0` (all traces when enabled) |
+| `OTEL_TRACE_PROBES` | off (no spans for `/livez` `/readyz` `/startupz` `/metrics` `/ping`) |
+| propagators | always **tracecontext + baggage + b3 + jaeger** |
+| `OTEL_EXPORTER_OTLP_INSECURE` | unset (exporter default); set `"true"` in-cluster without TLS |
+
+On **every startup** we log a single line `otel config (effective)` with enabled flag, endpoints, protocol, sample ratio, probe tracing, and propagators — grep pod logs for `otel config`.
 
 ### Enable traces (OTLP push)
-
-No endpoint configured → tracing is a **no-op** (safe default). To send to Alloy in-cluster:
 
 ```yaml
 env:
@@ -523,21 +556,17 @@ env:
   # - name: OTEL_SDK_DISABLED
   #   value: "true"
   # - name: OTEL_TRACE_PROBES
-  #   value: "true"   # also span /livez /readyz /startupz (noisy; off by default)
+  #   value: "true"   # also span kube probes (noisy)
 ```
 
 What gets instrumented:
 
-- **Inbound HTTP** — Gin middleware (`otelgin`): one span per request, W3C `traceparent` extracted  
-  (probes + `/metrics` + `/ping` skipped unless `OTEL_TRACE_PROBES=true`)
-- **Outbound `/a/proxy`** — `otelhttp` client transport: child span + propagates context east-west
-- **Response header** `X-Trace-Id` — copy into Tempo search after a curl
-
-So a north-south hit that proxies east-west shows as a **linked trace** in Tempo if both sides (or at least this hop) export OTLP.
+- **Inbound HTTP** — Gin (`otelgin`) + mesh header attributes  
+- **Outbound `/a/proxy`** — `otelhttp` client span + header inject east-west  
+- **Response** `X-Trace-Id` (OTEL) and `X-Request-Id` (if the mesh/client sent one)
 
 ```bash
-# see the trace id for a request
-curl -sS -D- localhost:8080/debug -o /dev/null | grep -i x-trace-id
+curl -sS -D- -H 'X-Request-Id: demo-from-gateway' localhost:8080/debug -o /dev/null | grep -iE 'x-trace-id|x-request-id'
 ```
 
 ### Alloy sketch
@@ -545,12 +574,12 @@ curl -sS -D- localhost:8080/debug -o /dev/null | grep -i x-trace-id
 ```hcl
 // metrics: scrape this app
 prometheus.scrape "cu_api" {
-  targets    = [{ __address__ = "cluster-utils-api-svc:8080" }]
+  targets      = [{ __address__ = "cluster-utils-api-svc:8080" }]
   metrics_path = "/metrics"
-  forward_to = [prometheus.remote_write.mimir.receiver]
+  forward_to   = [prometheus.remote_write.mimir.receiver]
 }
 
-// traces: receive OTLP push from the app
+// traces: receive OTLP *push* from the app
 otelcol.receiver.otlp "default" {
   http { endpoint = "0.0.0.0:4318" }
   grpc { endpoint = "0.0.0.0:4317" }
@@ -561,6 +590,8 @@ otelcol.exporter.otlp "tempo" {
   client { endpoint = "tempo:4317" tls { insecure = true } }
 }
 ```
+
+Istio tip: prefer mesh config that emits **W3C** (or dual W3C+B3). If you only have B3 today, our B3 propagator still joins the chain.
 
 ---
 

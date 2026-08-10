@@ -62,9 +62,9 @@ func main() {
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	// Order: create span → echo trace id → metrics → logs → recover
+	// Order: create span → mesh attrs + echo ids → metrics → logs → recover
 	r.Use(otelgin.Middleware("cluster-utils-api", otelgin.WithFilter(otelPathFilter)))
-	r.Use(traceIDResponseHeader())
+	r.Use(traceAndRequestIDHeaders())
 	r.Use(handlers.MetricsMiddleware())
 	r.Use(middleware.LoggerMiddleware(logger))
 	r.Use(gin.Recovery())
@@ -148,13 +148,23 @@ func otelPathFilter(r *http.Request) bool {
 	}
 }
 
-// traceIDResponseHeader lets you correlate curl ↔ Tempo without digging headers on the way in.
-func traceIDResponseHeader() gin.HandlerFunc {
+// traceAndRequestIDHeaders:
+//   - attaches Istio/Envoy x-request-id (and friends) onto the span
+//   - echoes X-Trace-Id (OTEL) and X-Request-Id (mesh) on the response for easy curl ↔ Tempo/access-log joins
+func traceAndRequestIDHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		reqID := otelsetup.AnnotateMeshHeaders(c.Request.Context(), c.GetHeader)
 		c.Next()
+
 		sc := trace.SpanFromContext(c.Request.Context()).SpanContext()
 		if sc.IsValid() {
 			c.Writer.Header().Set("X-Trace-Id", sc.TraceID().String())
+		}
+		// Prefer inbound mesh id; otherwise leave empty (don't invent — Envoy owns that space)
+		if reqID != "" {
+			c.Writer.Header().Set("X-Request-Id", reqID)
+		} else if inbound := c.GetHeader("X-Request-Id"); inbound != "" {
+			c.Writer.Header().Set("X-Request-Id", inbound)
 		}
 	}
 }
