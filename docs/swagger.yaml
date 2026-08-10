@@ -135,9 +135,10 @@ info:
     • Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev
     • Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes
     • Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)
-    • Pair: https://github.com/donkeyx/cluster-utils
+    • Docs / source: https://github.com/donkeyx/cluster-utils-api
+    • Pair (shell toolkit): https://github.com/donkeyx/cluster-utils
   title: Cluster Utils API
-  version: 2.5.0
+  version: 2.5.2
 paths:
   /a/control/probes:
     get:

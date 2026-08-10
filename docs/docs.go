@@ -847,12 +847,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "2.5.0",
+	Version:          "2.5.2",
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Cluster Utils API",
-	Description:      "HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.\n\n• Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev\n• Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes\n• Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)\n• Pair: https://github.com/donkeyx/cluster-utils",
+	Description:      "HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.\n\n• Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev\n• Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes\n• Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)\n• Docs / source: https://github.com/donkeyx/cluster-utils-api\n• Pair (shell toolkit): https://github.com/donkeyx/cluster-utils",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
