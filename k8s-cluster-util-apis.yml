@@ -100,12 +100,12 @@ spec:
             # include kube probe paths in traces (off by default — noisy)
             # - name: OTEL_TRACE_PROBES
             #   value: "true"
-          # Sized from podman run of :2.5.0 (idle~14–15Mi cgroup, process_resident~40Mi,
-          # CPU ~0.3–1% under light load). requests ≈ 90% of observed process RSS; limits headroom.
+          # Sized from podman run of :2.5.0 (cgroup ~15–16Mi, process_resident ~40–43Mi,
+          # CPU ~0.1–1% under light load). requests ≈ 90% of process RSS; limits headroom.
           resources:
             requests:
               cpu: "10m"
-              memory: "36Mi"
+              memory: "40Mi"
             limits:
               cpu: "100m"
               memory: "80Mi"
