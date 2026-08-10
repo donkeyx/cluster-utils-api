@@ -64,8 +64,9 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	authGroup.GET("/control/probes", handlers.GetProbesHandler)
 	authGroup.PUT("/control/probes", handlers.PutProbesHandler)
 	// open /proxy would be SSRF (scan cluster, hit metadata, etc.)
-	authGroup.GET("/proxy", handlers.ProxyHandler)
-	authGroup.POST("/proxy", handlers.ProxyHandler)
+	// Separate handlers so Swagger GET has no body (browsers reject GET+body).
+	authGroup.GET("/proxy", handlers.ProxyGetHandler)
+	authGroup.POST("/proxy", handlers.ProxyPostHandler)
 }
 
 func swaggerHandler() gin.HandlerFunc {

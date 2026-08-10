@@ -52,7 +52,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Partial update of live/ready/startup. resetStartupLatch re-runs cold start without restarting the process.",
+                "description": "Partial update of live/ready/startup. Example: fail readiness so the pod drops from Service endpoints (no restart). resetStartupLatch re-runs cold start without restarting the process. Auth: Authorize lock with \"Bearer dev\".",
                 "consumes": [
                     "application/json"
                 ],
@@ -63,7 +63,7 @@ const docTemplate = `{
                 "operationId": "putProbes",
                 "parameters": [
                     {
-                        "description": "probe update",
+                        "description": "Partial update — schema examples show fail-readiness shape",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -107,22 +107,12 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/",
+                "description": "Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/. Use the Authorize button (value: Bearer \u0026lt;token\u0026gt;) — do not leave a separate Authorization param empty.",
                 "produces": [
                     "application/json"
                 ],
                 "summary": "Get environment variables",
                 "operationId": "env",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "default": "Bearer",
-                        "description": "Bearer token from app logs",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -152,44 +142,36 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Auth: top-right Authorize with \"Bearer dev\". Simple query-only hop (no body — browsers forbid GET+body). Default url hits httpbin so you see method/headers echoed. Prefer POST /a/proxy for full JSON control.",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Proxy / hop to another service (auth)",
-                "operationId": "proxy",
+                "summary": "Proxy GET hop (auth)",
+                "operationId": "proxyGet",
                 "parameters": [
                     {
-                        "description": "proxy request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.ProxyRequest"
-                        }
-                    },
-                    {
                         "type": "string",
-                        "description": "absolute url (GET form)",
+                        "default": "https://httpbin.org/get",
+                        "example": "https://httpbin.org/get",
+                        "description": "absolute URL to fetch",
                         "name": "url",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "HTTP method for GET form (default GET)",
+                        "default": "GET",
+                        "example": "GET",
+                        "description": "HTTP method for the outbound call",
                         "name": "method",
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "default": "Bearer",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
+                        "type": "number",
+                        "default": 15,
+                        "example": 15,
+                        "description": "outbound timeout seconds",
+                        "name": "timeoutSeconds",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -233,15 +215,15 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.",
+                "description": "Auth: top-right Authorize with \"Bearer dev\". Full JSON control — example body calls https://httpbin.org/get so the wrap shows upstream status/headers/body. North→south then east-west; SSRF if left unauthenticated.",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Proxy / hop to another service (auth)",
-                "operationId": "proxy",
+                "summary": "Proxy POST hop (auth)",
+                "operationId": "proxyPost",
                 "parameters": [
                     {
                         "description": "proxy request",
@@ -251,26 +233,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handlers.ProxyRequest"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "absolute url (GET form)",
-                        "name": "url",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "HTTP method for GET form (default GET)",
-                        "name": "method",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "Bearer",
-                        "description": "Bearer token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -330,7 +292,7 @@ const docTemplate = `{
         },
         "/delay/{seconds}": {
             "get": {
-                "description": "Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead",
+                "description": "Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). Try 2 for a slow upstream demo; use probe delaySeconds to trip kube timeoutSeconds.",
                 "produces": [
                     "text/plain"
                 ],
@@ -339,6 +301,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "number",
+                        "default": 2,
+                        "example": 2,
                         "description": "seconds to sleep",
                         "name": "seconds",
                         "in": "path",
@@ -357,7 +321,7 @@ const docTemplate = `{
         },
         "/echo": {
             "get": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -366,6 +330,18 @@ const docTemplate = `{
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -377,7 +353,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -386,6 +362,18 @@ const docTemplate = `{
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -397,7 +385,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -406,6 +394,18 @@ const docTemplate = `{
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -417,7 +417,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -426,6 +426,18 @@ const docTemplate = `{
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -437,7 +449,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -446,6 +458,18 @@ const docTemplate = `{
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -625,7 +649,7 @@ const docTemplate = `{
         },
         "/status/{code}": {
             "get": {
-                "description": "Respond with whatever http status you pass (100-599). Great for ingress/retry testing",
+                "description": "Respond with whatever http status you pass (100-599). Try 418 (teapot), 503, or 502 for ingress/retry tests.",
                 "produces": [
                     "text/plain"
                 ],
@@ -634,6 +658,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
+                        "default": 418,
+                        "example": 418,
                         "description": "HTTP status code",
                         "name": "code",
                         "in": "path",
@@ -677,23 +703,29 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "bootDelaySeconds": {
-                    "description": "Startup only: wall-clock seconds from process start before a success is allowed.",
-                    "type": "number"
+                    "description": "Startup only: wall-clock seconds from process start before a success is allowed.\nexample: 10",
+                    "type": "number",
+                    "example": 10
                 },
                 "delaySeconds": {
-                    "description": "sleep before answering (0–30)",
-                    "type": "number"
+                    "description": "sleep before answering (seconds)\nexample: 0",
+                    "type": "number",
+                    "example": 0
                 },
                 "flapEvery": {
-                    "type": "integer"
+                    "description": "Flap: every Nth request fails (0 = use time-based flapSeconds).\nexample: 2",
+                    "type": "integer",
+                    "example": 2
                 },
                 "flapSeconds": {
-                    "description": "Flap (mode=flap):\n  flapSeconds — wall-clock half-period: ok for N sec, fail for N sec, repeat (default 5).\n  flapEvery   — if \u003e 0, every Nth request fails instead of using the clock (handy for tests).",
-                    "type": "number"
+                    "description": "Flap (mode=flap): half-period seconds (default 5).\nexample: 5",
+                    "type": "number",
+                    "example": 5
                 },
                 "mode": {
-                    "description": "ok | fail | delay | flap",
-                    "type": "string"
+                    "description": "ok | fail | delay | flap\nexample: fail",
+                    "type": "string",
+                    "example": "fail"
                 }
             }
         },
@@ -740,7 +772,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/handlers.ProbeConfig"
                 },
                 "resetStartupLatch": {
-                    "type": "boolean"
+                    "description": "example: true",
+                    "type": "boolean",
+                    "example": true
                 },
                 "startup": {
                     "$ref": "#/definitions/handlers.ProbeConfig"
@@ -754,46 +788,56 @@ const docTemplate = `{
             ],
             "properties": {
                 "body": {
-                    "description": "Optional body (string; use for JSON text, form, etc.)",
-                    "type": "string"
+                    "description": "Optional body (string; use for JSON text, form, etc.)\nexample: {\"hello\":\"cluster\"}",
+                    "type": "string",
+                    "example": "{\"hello\":\"cluster\"}"
                 },
                 "forwardIncomingHeaders": {
-                    "description": "When true (default), copy inbound request headers onto the outbound call\n(minus hop-by-hop). Tracing headers like X-Request-Id ride along.",
-                    "type": "boolean"
+                    "description": "When true (default), copy inbound request headers onto the outbound call\n(minus hop-by-hop). Tracing headers like X-Request-Id ride along.\nexample: true",
+                    "type": "boolean",
+                    "example": true
                 },
                 "forwardSensitiveHeaders": {
-                    "description": "When true, also forward Authorization / Cookie from the inbound request.\nDefault false so your bearer token for *this* api is not sent east-west by accident.",
-                    "type": "boolean"
+                    "description": "When true, also forward Authorization / Cookie from the inbound request.\nDefault false so your bearer token for *this* api is not sent east-west by accident.\nexample: false",
+                    "type": "boolean",
+                    "example": false
                 },
                 "headers": {
-                    "description": "Extra headers to set/override on the outbound request",
+                    "description": "Extra headers to set/override on the outbound request\nexample: {\"X-Demo\":\"from-swagger\"}",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    },
+                    "example": {
+                        "X-Demo": "from-swagger"
                     }
                 },
                 "method": {
-                    "description": "HTTP method (default GET)",
-                    "type": "string"
+                    "description": "HTTP method (default GET)\nexample: GET",
+                    "type": "string",
+                    "example": "GET"
                 },
                 "raw": {
-                    "description": "When true, return the upstream body as the raw HTTP response (status + headers from upstream).\nDefault false → JSON wrap with request/response/meta (includes upstream headers + body).",
-                    "type": "boolean"
+                    "description": "When true, return the upstream body as the raw HTTP response (status + headers from upstream).\nDefault false → JSON wrap with request/response/meta (includes upstream headers + body).\nexample: false",
+                    "type": "boolean",
+                    "example": false
                 },
                 "timeoutSeconds": {
-                    "description": "Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)",
-                    "type": "number"
+                    "description": "Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)\nexample: 15",
+                    "type": "number",
+                    "example": 15
                 },
                 "url": {
-                    "description": "Absolute URL to call, e.g. http://other-api:8080/debug",
-                    "type": "string"
+                    "description": "Absolute URL to call (demo: httpbin echoes method/headers back as JSON)\nexample: https://httpbin.org/get",
+                    "type": "string",
+                    "example": "https://httpbin.org/get"
                 }
             }
         }
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Paste: Bearer \u003ctoken\u003e  (token from container logs, or AUTH_TOKEN env). Example: Bearer dev",
+            "description": "Top-right Authorize lock only. Value MUST be: Bearer \u003ctoken\u003e  e.g. Bearer dev",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -803,12 +847,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "2.0",
+	Version:          "2.5.0",
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "Cluster Util API",
-	Description:      "Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster. Swagger \"Try it out\" uses the host you opened the UI on (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize with Bearer token from logs or AUTH_TOKEN.",
+	Title:            "Cluster Utils API",
+	Description:      "HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.\n\n• Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev\n• Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes\n• Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)\n• Pair: https://github.com/donkeyx/cluster-utils",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

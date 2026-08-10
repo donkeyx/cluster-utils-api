@@ -3,22 +3,34 @@ definitions:
   handlers.ProbeConfig:
     properties:
       bootDelaySeconds:
-        description: 'Startup only: wall-clock seconds from process start before a
-          success is allowed.'
+        description: |-
+          Startup only: wall-clock seconds from process start before a success is allowed.
+          example: 10
+        example: 10
         type: number
       delaySeconds:
-        description: sleep before answering (0–30)
+        description: |-
+          sleep before answering (seconds)
+          example: 0
+        example: 0
         type: number
       flapEvery:
+        description: |-
+          Flap: every Nth request fails (0 = use time-based flapSeconds).
+          example: 2
+        example: 2
         type: integer
       flapSeconds:
         description: |-
-          Flap (mode=flap):
-            flapSeconds — wall-clock half-period: ok for N sec, fail for N sec, repeat (default 5).
-            flapEvery   — if > 0, every Nth request fails instead of using the clock (handy for tests).
+          Flap (mode=flap): half-period seconds (default 5).
+          example: 5
+        example: 5
         type: number
       mode:
-        description: ok | fail | delay | flap
+        description: |-
+          ok | fail | delay | flap
+          example: fail
+        example: fail
         type: string
     type: object
   handlers.ProbeSnapshot:
@@ -50,6 +62,8 @@ definitions:
       ready:
         $ref: '#/definitions/handlers.ProbeConfig'
       resetStartupLatch:
+        description: 'example: true'
+        example: true
         type: boolean
       startup:
         $ref: '#/definitions/handlers.ProbeConfig'
@@ -57,48 +71,73 @@ definitions:
   handlers.ProxyRequest:
     properties:
       body:
-        description: Optional body (string; use for JSON text, form, etc.)
+        description: |-
+          Optional body (string; use for JSON text, form, etc.)
+          example: {"hello":"cluster"}
+        example: '{"hello":"cluster"}'
         type: string
       forwardIncomingHeaders:
         description: |-
           When true (default), copy inbound request headers onto the outbound call
           (minus hop-by-hop). Tracing headers like X-Request-Id ride along.
+          example: true
+        example: true
         type: boolean
       forwardSensitiveHeaders:
         description: |-
           When true, also forward Authorization / Cookie from the inbound request.
           Default false so your bearer token for *this* api is not sent east-west by accident.
+          example: false
+        example: false
         type: boolean
       headers:
         additionalProperties:
           type: string
-        description: Extra headers to set/override on the outbound request
+        description: |-
+          Extra headers to set/override on the outbound request
+          example: {"X-Demo":"from-swagger"}
+        example:
+          X-Demo: from-swagger
         type: object
       method:
-        description: HTTP method (default GET)
+        description: |-
+          HTTP method (default GET)
+          example: GET
+        example: GET
         type: string
       raw:
         description: |-
           When true, return the upstream body as the raw HTTP response (status + headers from upstream).
           Default false → JSON wrap with request/response/meta (includes upstream headers + body).
+          example: false
+        example: false
         type: boolean
       timeoutSeconds:
-        description: Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)
+        description: |-
+          Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)
+          example: 15
+        example: 15
         type: number
       url:
-        description: Absolute URL to call, e.g. http://other-api:8080/debug
+        description: |-
+          Absolute URL to call (demo: httpbin echoes method/headers back as JSON)
+          example: https://httpbin.org/get
+        example: https://httpbin.org/get
         type: string
     required:
     - url
     type: object
 info:
   contact: {}
-  description: Drop-in HTTP util for testing probes, routing, headers, env/params
-    and more in a cluster. Swagger "Try it out" uses the host you opened the UI on
-    (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize
-    with Bearer token from logs or AUTH_TOKEN.
-  title: Cluster Util API
-  version: "2.0"
+  description: |-
+    HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.
+
+    • Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev
+    • Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes
+    • Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)
+    • Pair: https://github.com/donkeyx/cluster-utils
+  title: Cluster Utils API
+  version: 2.5.0
 paths:
   /a/control/probes:
     get:
@@ -124,11 +163,13 @@ paths:
     put:
       consumes:
       - application/json
-      description: Partial update of live/ready/startup. resetStartupLatch re-runs
-        cold start without restarting the process.
+      description: 'Partial update of live/ready/startup. Example: fail readiness
+        so the pod drops from Service endpoints (no restart). resetStartupLatch re-runs
+        cold start without restarting the process. Auth: Authorize lock with "Bearer
+        dev".'
       operationId: putProbes
       parameters:
-      - description: probe update
+      - description: Partial update — schema examples show fail-readiness shape
         in: body
         name: body
         required: true
@@ -158,16 +199,10 @@ paths:
       summary: Update probe control state
   /a/env:
     get:
-      description: Env dump so you can check secrets/configmaps/task params actually
-        landed. Behind auth under /a/
+      description: 'Env dump so you can check secrets/configmaps/task params actually
+        landed. Behind auth under /a/. Use the Authorize button (value: Bearer &lt;token&gt;)
+        — do not leave a separate Authorization param empty.'
       operationId: env
-      parameters:
-      - default: Bearer
-        description: Bearer token from app logs
-        in: header
-        name: Authorization
-        required: true
-        type: string
       produces:
       - application/json
       responses:
@@ -188,33 +223,29 @@ paths:
       summary: Get environment variables
   /a/proxy:
     get:
-      consumes:
-      - application/json
-      description: Auth required. North→south hits this pod; this pod calls url east-west.
-        Default JSON wrap includes upstream status, headers, and body. Open proxy
-        would be SSRF — keep behind bearer.
-      operationId: proxy
+      description: 'Auth: top-right Authorize with "Bearer dev". Simple query-only
+        hop (no body — browsers forbid GET+body). Default url hits httpbin so you
+        see method/headers echoed. Prefer POST /a/proxy for full JSON control.'
+      operationId: proxyGet
       parameters:
-      - description: proxy request
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/handlers.ProxyRequest'
-      - description: absolute url (GET form)
+      - default: https://httpbin.org/get
+        description: absolute URL to fetch
+        example: https://httpbin.org/get
         in: query
         name: url
         type: string
-      - description: HTTP method for GET form (default GET)
+      - default: GET
+        description: HTTP method for the outbound call
+        example: GET
         in: query
         name: method
         type: string
-      - default: Bearer
-        description: Bearer token
-        in: header
-        name: Authorization
-        required: true
-        type: string
+      - default: 15
+        description: outbound timeout seconds
+        example: 15
+        in: query
+        name: timeoutSeconds
+        type: number
       produces:
       - application/json
       responses:
@@ -242,14 +273,14 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Proxy / hop to another service (auth)
+      summary: Proxy GET hop (auth)
     post:
       consumes:
       - application/json
-      description: Auth required. North→south hits this pod; this pod calls url east-west.
-        Default JSON wrap includes upstream status, headers, and body. Open proxy
-        would be SSRF — keep behind bearer.
-      operationId: proxy
+      description: 'Auth: top-right Authorize with "Bearer dev". Full JSON control
+        — example body calls https://httpbin.org/get so the wrap shows upstream status/headers/body.
+        North→south then east-west; SSRF if left unauthenticated.'
+      operationId: proxyPost
       parameters:
       - description: proxy request
         in: body
@@ -257,20 +288,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/handlers.ProxyRequest'
-      - description: absolute url (GET form)
-        in: query
-        name: url
-        type: string
-      - description: HTTP method for GET form (default GET)
-        in: query
-        name: method
-        type: string
-      - default: Bearer
-        description: Bearer token
-        in: header
-        name: Authorization
-        required: true
-        type: string
       produces:
       - application/json
       responses:
@@ -298,7 +315,7 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Proxy / hop to another service (auth)
+      summary: Proxy POST hop (auth)
   /debug:
     get:
       description: Hostname, client ip, headers, uri — good for routing tests
@@ -315,11 +332,13 @@ paths:
   /delay/{seconds}:
     get:
       description: Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default
-        120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds
-        instead
+        120, hard max 600). Try 2 for a slow upstream demo; use probe delaySeconds
+        to trip kube timeoutSeconds.
       operationId: delay
       parameters:
-      - description: seconds to sleep
+      - default: 2
+        description: seconds to sleep
+        example: 2
         in: path
         name: seconds
         required: true
@@ -336,8 +355,17 @@ paths:
     delete:
       consumes:
       - text/plain
-      description: Bounce method, path, query, headers and body back as json
+      description: Bounce method, path, query, headers and body back as json. Try
+        POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.
       operationId: echo
+      parameters:
+      - default: '{"hello":"from-swagger"}'
+        description: optional body to echo
+        example: '{"hello":"from-swagger"}'
+        in: body
+        name: body
+        schema:
+          type: string
       produces:
       - application/json
       responses:
@@ -350,8 +378,17 @@ paths:
     get:
       consumes:
       - text/plain
-      description: Bounce method, path, query, headers and body back as json
+      description: Bounce method, path, query, headers and body back as json. Try
+        POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.
       operationId: echo
+      parameters:
+      - default: '{"hello":"from-swagger"}'
+        description: optional body to echo
+        example: '{"hello":"from-swagger"}'
+        in: body
+        name: body
+        schema:
+          type: string
       produces:
       - application/json
       responses:
@@ -364,8 +401,17 @@ paths:
     patch:
       consumes:
       - text/plain
-      description: Bounce method, path, query, headers and body back as json
+      description: Bounce method, path, query, headers and body back as json. Try
+        POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.
       operationId: echo
+      parameters:
+      - default: '{"hello":"from-swagger"}'
+        description: optional body to echo
+        example: '{"hello":"from-swagger"}'
+        in: body
+        name: body
+        schema:
+          type: string
       produces:
       - application/json
       responses:
@@ -378,8 +424,17 @@ paths:
     post:
       consumes:
       - text/plain
-      description: Bounce method, path, query, headers and body back as json
+      description: Bounce method, path, query, headers and body back as json. Try
+        POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.
       operationId: echo
+      parameters:
+      - default: '{"hello":"from-swagger"}'
+        description: optional body to echo
+        example: '{"hello":"from-swagger"}'
+        in: body
+        name: body
+        schema:
+          type: string
       produces:
       - application/json
       responses:
@@ -392,8 +447,17 @@ paths:
     put:
       consumes:
       - text/plain
-      description: Bounce method, path, query, headers and body back as json
+      description: Bounce method, path, query, headers and body back as json. Try
+        POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.
       operationId: echo
+      parameters:
+      - default: '{"hello":"from-swagger"}'
+        description: optional body to echo
+        example: '{"hello":"from-swagger"}'
+        in: body
+        name: body
+        schema:
+          type: string
       produces:
       - application/json
       responses:
@@ -519,11 +583,13 @@ paths:
       summary: Startup (startupz)
   /status/{code}:
     get:
-      description: Respond with whatever http status you pass (100-599). Great for
-        ingress/retry testing
+      description: Respond with whatever http status you pass (100-599). Try 418 (teapot),
+        503, or 502 for ingress/retry tests.
       operationId: status
       parameters:
-      - description: HTTP status code
+      - default: 418
+        description: HTTP status code
+        example: 418
         in: path
         name: code
         required: true
@@ -552,8 +618,8 @@ paths:
       summary: Version / build info
 securityDefinitions:
   BearerAuth:
-    description: 'Paste: Bearer <token>  (token from container logs, or AUTH_TOKEN
-      env). Example: Bearer dev'
+    description: 'Top-right Authorize lock only. Value MUST be: Bearer <token>  e.g.
+      Bearer dev'
     in: header
     name: Authorization
     type: apiKey

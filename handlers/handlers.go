@@ -96,14 +96,13 @@ func HeadersHandler(c *gin.Context) {
 }
 
 // @Summary Get environment variables
-// @Description Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/
+// @Description Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/. Use the Authorize button (value: Bearer &lt;token&gt;) — do not leave a separate Authorization param empty.
 // @ID env
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /a/env [get]
-// @Param Authorization header string true "Bearer token from app logs" default(Bearer )
 func EnvHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, GetEnvironmentVariables())
 }
@@ -127,10 +126,10 @@ func DebugHandler(c *gin.Context) {
 }
 
 // @Summary Fixed status code
-// @Description Respond with whatever http status you pass (100-599). Great for ingress/retry testing
+// @Description Respond with whatever http status you pass (100-599). Try 418 (teapot), 503, or 502 for ingress/retry tests.
 // @ID status
 // @Produce plain
-// @Param code path int true "HTTP status code"
+// @Param code path int true "HTTP status code" default(418) example(418)
 // @Success 200 {string} string "status body"
 // @Router /status/{code} [get]
 func StatusHandler(c *gin.Context) {
@@ -143,10 +142,10 @@ func StatusHandler(c *gin.Context) {
 }
 
 // @Summary Delay then OK
-// @Description Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead
+// @Description Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). Try 2 for a slow upstream demo; use probe delaySeconds to trip kube timeoutSeconds.
 // @ID delay
 // @Produce plain
-// @Param seconds path number true "seconds to sleep"
+// @Param seconds path number true "seconds to sleep" default(2) example(2)
 // @Success 200 {string} string "delayed"
 // @Router /delay/{seconds} [get]
 func DelayHandler(c *gin.Context) {
@@ -163,10 +162,11 @@ func DelayHandler(c *gin.Context) {
 }
 
 // @Summary Echo request
-// @Description Bounce method, path, query, headers and body back as json
+// @Description Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.
 // @ID echo
 // @Accept plain
 // @Produce json
+// @Param body body string false "optional body to echo" default({"hello":"from-swagger"}) example({"hello":"from-swagger"})
 // @Success 200 {object} map[string]interface{}
 // @Router /echo [get]
 // @Router /echo [post]

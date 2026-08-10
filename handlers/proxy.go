@@ -38,79 +38,113 @@ var sensitiveForwardHeaders = map[string]bool{
 // ProxyRequest is the JSON body for POST /a/proxy.
 // North-south hits this pod; we call another URL east-west (auth required — open proxy is SSRF).
 type ProxyRequest struct {
-	// Absolute URL to call, e.g. http://other-api:8080/debug
-	URL string `json:"url" binding:"required"`
+	// Absolute URL to call (demo: httpbin echoes method/headers back as JSON)
+	// example: https://httpbin.org/get
+	URL string `json:"url" example:"https://httpbin.org/get" binding:"required"`
 	// HTTP method (default GET)
-	Method string `json:"method,omitempty"`
+	// example: GET
+	Method string `json:"method,omitempty" example:"GET"`
 	// Extra headers to set/override on the outbound request
-	Headers map[string]string `json:"headers,omitempty"`
+	// example: {"X-Demo":"from-swagger"}
+	Headers map[string]string `json:"headers,omitempty" example:"X-Demo:from-swagger"`
 	// Optional body (string; use for JSON text, form, etc.)
-	Body string `json:"body,omitempty"`
+	// example: {"hello":"cluster"}
+	Body string `json:"body,omitempty" example:"{\"hello\":\"cluster\"}"`
 	// Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)
-	TimeoutSeconds float64 `json:"timeoutSeconds,omitempty"`
+	// example: 15
+	TimeoutSeconds float64 `json:"timeoutSeconds,omitempty" example:"15"`
 	// When true (default), copy inbound request headers onto the outbound call
 	// (minus hop-by-hop). Tracing headers like X-Request-Id ride along.
-	ForwardIncomingHeaders *bool `json:"forwardIncomingHeaders,omitempty"`
+	// example: true
+	ForwardIncomingHeaders *bool `json:"forwardIncomingHeaders,omitempty" example:"true"`
 	// When true, also forward Authorization / Cookie from the inbound request.
 	// Default false so your bearer token for *this* api is not sent east-west by accident.
-	ForwardSensitiveHeaders bool `json:"forwardSensitiveHeaders,omitempty"`
+	// example: false
+	ForwardSensitiveHeaders bool `json:"forwardSensitiveHeaders,omitempty" example:"false"`
 	// When true, return the upstream body as the raw HTTP response (status + headers from upstream).
 	// Default false → JSON wrap with request/response/meta (includes upstream headers + body).
-	Raw bool `json:"raw,omitempty"`
+	// example: false
+	Raw bool `json:"raw,omitempty" example:"false"`
 }
 
-// @Summary Proxy / hop to another service (auth)
-// @Description Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.
-// @ID proxy
+// @Summary Proxy GET hop (auth)
+// @Description Auth: top-right Authorize with "Bearer dev". Simple query-only hop (no body — browsers forbid GET+body). Default url hits httpbin so you see method/headers echoed. Prefer POST /a/proxy for full JSON control.
+// @ID proxyGet
+// @Security BearerAuth
+// @Produce json
+// @Param url query string false "absolute URL to fetch" default(https://httpbin.org/get) example(https://httpbin.org/get)
+// @Param method query string false "HTTP method for the outbound call" default(GET) example(GET)
+// @Param timeoutSeconds query number false "outbound timeout seconds" default(15) example(15)
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 502 {object} map[string]interface{}
+// @Router /a/proxy [get]
+func ProxyGetHandler(c *gin.Context) {
+	req := ProxyRequest{
+		URL:    c.Query("url"),
+		Method: c.DefaultQuery("method", http.MethodGet),
+	}
+	if t := c.Query("timeoutSeconds"); t != "" {
+		if f, err := strconv.ParseFloat(t, 64); err == nil {
+			req.TimeoutSeconds = f
+		}
+	}
+	if c.Query("forwardIncomingHeaders") == "0" || c.Query("forwardIncomingHeaders") == "false" {
+		f := false
+		req.ForwardIncomingHeaders = &f
+	}
+	if c.Query("forwardSensitiveHeaders") == "1" || c.Query("forwardSensitiveHeaders") == "true" {
+		req.ForwardSensitiveHeaders = true
+	}
+	if c.Query("raw") == "1" || c.Query("raw") == "true" {
+		req.Raw = true
+	}
+	// swagger default url if empty
+	if strings.TrimSpace(req.URL) == "" {
+		req.URL = "https://httpbin.org/get"
+	}
+	doProxy(c, req)
+}
+
+// @Summary Proxy POST hop (auth)
+// @Description Auth: top-right Authorize with "Bearer dev". Full JSON control — example body calls https://httpbin.org/get so the wrap shows upstream status/headers/body. North→south then east-west; SSRF if left unauthenticated.
+// @ID proxyPost
 // @Security BearerAuth
 // @Accept json
 // @Produce json
 // @Param body body ProxyRequest true "proxy request"
-// @Param url query string false "absolute url (GET form)"
-// @Param method query string false "HTTP method for GET form (default GET)"
 // @Success 200 {object} map[string]interface{}
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Failure 502 {object} map[string]interface{}
 // @Router /a/proxy [post]
-// @Router /a/proxy [get]
-// @Param Authorization header string true "Bearer token" default(Bearer )
-func ProxyHandler(c *gin.Context) {
+func ProxyPostHandler(c *gin.Context) {
 	var req ProxyRequest
-
-	// GET convenience: /a/proxy?url=http://svc:8080/debug&method=GET
-	if c.Request.Method == http.MethodGet {
-		req.URL = c.Query("url")
-		req.Method = c.DefaultQuery("method", http.MethodGet)
-		if t := c.Query("timeoutSeconds"); t != "" {
-			if f, err := strconv.ParseFloat(t, 64); err == nil {
-				req.TimeoutSeconds = f
-			}
-		}
-		if c.Query("forwardIncomingHeaders") == "0" || c.Query("forwardIncomingHeaders") == "false" {
-			f := false
-			req.ForwardIncomingHeaders = &f
-		}
-		if c.Query("forwardSensitiveHeaders") == "1" || c.Query("forwardSensitiveHeaders") == "true" {
-			req.ForwardSensitiveHeaders = true
-		}
-		if c.Query("raw") == "1" || c.Query("raw") == "true" {
-			req.Raw = true
-		}
-	} else {
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json: " + err.Error()})
-			return
-		}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json: " + err.Error()})
+		return
 	}
+	doProxy(c, req)
+}
 
+// ProxyHandler kept for tests / any external refs — dispatches by method.
+func ProxyHandler(c *gin.Context) {
+	if c.Request.Method == http.MethodGet {
+		ProxyGetHandler(c)
+		return
+	}
+	ProxyPostHandler(c)
+}
+
+func doProxy(c *gin.Context, req ProxyRequest) {
 	if strings.TrimSpace(req.URL) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "url is required"})
 		return
 	}
 	u, err := url.Parse(req.URL)
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "url must be absolute, e.g. http://other-svc:8080/debug"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "url must be absolute, e.g. https://httpbin.org/get or http://other-svc:8080/debug"})
 		return
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
@@ -145,7 +179,6 @@ func ProxyHandler(c *gin.Context) {
 		return
 	}
 
-	// 1) optional: copy north-south inbound headers → east-west outbound
 	if forward {
 		for k, vals := range c.Request.Header {
 			lk := strings.ToLower(k)
@@ -161,7 +194,6 @@ func ProxyHandler(c *gin.Context) {
 		}
 	}
 
-	// 2) explicit headers win (including Authorization if you set it here on purpose)
 	for k, v := range req.Headers {
 		outReq.Header.Set(k, v)
 	}
@@ -172,7 +204,6 @@ func ProxyHandler(c *gin.Context) {
 	hostname, _ := os.Hostname()
 	outReq.Header.Add("X-Cu-Proxy-Hop", hostname)
 
-	// otelhttp propagates W3C trace context east-west and creates a client span
 	client := &http.Client{
 		Timeout:   time.Duration(timeout * float64(time.Second)),
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
@@ -192,7 +223,7 @@ func ProxyHandler(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20)) // 2MB cap in debug wrap
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	respHeaders := map[string][]string{}
 	for k, v := range resp.Header {
 		respHeaders[k] = v
@@ -213,7 +244,6 @@ func ProxyHandler(c *gin.Context) {
 		sentHeaders[k] = v
 	}
 
-	// Default wrap: full upstream response (status + headers + body) for mesh debugging
 	c.JSON(http.StatusOK, gin.H{
 		"request": gin.H{
 			"url":     req.URL,
