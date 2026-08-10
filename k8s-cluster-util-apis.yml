@@ -21,8 +21,8 @@ spec:
         - name: cluster-utils-api
           # GHCR primary (Hub still works as mirror). Version tag → default pull IfNotPresent.
           # :latest still forces Always in kube even without imagePullPolicy.
-          image: ghcr.io/donkeyx/cluster-utils-api:2.5.0
-          # Alternative: docker.io/donkeyx/cluster-utils-api:2.5.0
+          image: ghcr.io/donkeyx/cluster-utils-api:2.5.2
+          # Alternative: docker.io/donkeyx/cluster-utils-api:2.5.2
           ports:
             - name: http
               containerPort: 8080

@@ -1,11 +1,12 @@
 // @title Cluster Utils API
-// @version 2.5.0
+// @version 2.5.2
 // @description HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.
 // @description
 // @description • Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev
 // @description • Probes: /startupz /livez /readyz  ·  Control: GET|PUT /a/control/probes
 // @description • Proxy: GET /a/proxy?url=https://httpbin.org/get  (or POST JSON body)
-// @description • Pair: https://github.com/donkeyx/cluster-utils
+// @description • Docs / source: https://github.com/donkeyx/cluster-utils-api
+// @description • Pair (shell toolkit): https://github.com/donkeyx/cluster-utils
 // @BasePath /
 // @securityDefinitions.apikey BearerAuth
 // @in header

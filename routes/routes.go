@@ -3,6 +3,7 @@ package routes
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -19,8 +20,14 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-// swaggerInfoMu guards docs.SwaggerInfo Host/Schemes when serving the UI for different origins.
+// swaggerInfoMu guards docs.SwaggerInfo Host/Schemes/Description when serving the UI.
 var swaggerInfoMu sync.Mutex
+
+// swaggerBaseDescription is the static @description from swag (no per-request target line).
+var (
+	swaggerBaseDescription     string
+	swaggerBaseDescriptionOnce sync.Once
+)
 
 // darkCSS is injected into Swagger UI (gin-swagger has no first-class dark mode).
 //
@@ -91,23 +98,33 @@ func swaggerHandler() gin.HandlerFunc {
 
 		// Resolve Try-it-out server URL (not the listen bind — that's PORT).
 		// 1) query  2) SWAGGER_* env  3) request
+		hostSource := "request Host"
 		host := strings.TrimSpace(c.Query("host"))
-		if host == "" {
+		if host != "" {
+			hostSource = "URL ?host="
+		} else {
 			host = strings.TrimSpace(os.Getenv("SWAGGER_HOST"))
-		}
-		if host == "" {
-			host = c.Request.Host
+			if host != "" {
+				hostSource = "SWAGGER_HOST env"
+			} else {
+				host = c.Request.Host
+			}
 		}
 
+		schemeSource := "request / X-Forwarded-Proto"
 		scheme := strings.ToLower(strings.TrimSpace(c.Query("scheme")))
-		if scheme != "http" && scheme != "https" {
+		if scheme == "http" || scheme == "https" {
+			schemeSource = "URL ?scheme="
+		} else {
 			scheme = strings.ToLower(strings.TrimSpace(os.Getenv("SWAGGER_SCHEME")))
-		}
-		if scheme != "http" && scheme != "https" {
-			if c.Request.TLS != nil || strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https") {
-				scheme = "https"
+			if scheme == "http" || scheme == "https" {
+				schemeSource = "SWAGGER_SCHEME env"
 			} else {
-				scheme = "http"
+				if c.Request.TLS != nil || strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https") {
+					scheme = "https"
+				} else {
+					scheme = "http"
+				}
 			}
 		}
 
@@ -115,9 +132,22 @@ func swaggerHandler() gin.HandlerFunc {
 
 		// Serialize updates to the global SwaggerInfo used when doc.json is generated.
 		swaggerInfoMu.Lock()
+		swaggerBaseDescriptionOnce.Do(func() {
+			swaggerBaseDescription = docs.SwaggerInfo.Description
+		})
 		docs.SwaggerInfo.Host = host
 		docs.SwaggerInfo.Schemes = []string{scheme}
 		docs.SwaggerInfo.BasePath = "/"
+		// Live target + how to change it (shows in the Swagger info panel).
+		docs.SwaggerInfo.Description = swaggerBaseDescription + fmt.Sprintf(
+			"\n\n---\n\n**Try-it-out target (now):** `%s://%s/`  \n"+
+				"_host from %s · scheme from %s_  \n\n"+
+				"Change for this tab: append query params, e.g.  \n"+
+				"`/api-docs/index.html?host=my-svc.ns.svc:8080&scheme=http`  \n"+
+				"Or set env `SWAGGER_HOST` / `SWAGGER_SCHEME` once at startup.  \n"+
+				"Priority: **query → env → request Host**.",
+			scheme, host, hostSource, schemeSource,
+		)
 
 		// Capture HTML for index so we can inject dark CSS (stock swagger is bright white).
 		if !light && isSwaggerIndex(any) {

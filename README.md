@@ -118,22 +118,42 @@ If still 401: hard-refresh swagger (stale token), confirm
 `curl -sS -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer dev' http://127.0.0.1:18080/a/env`  
 is `200`, or check `podman logs cu-api | grep '"token"'`.
 
-**Host / scheme (Try-it-out target):** by default the UI uses the host you opened.
-If you’re behind an ingress / port-map and that is wrong, set once at startup:
+#### Change the Try-it-out API host (query params — most common)
+
+By default Swagger calls **whatever host you opened the docs on**.  
+If that is wrong (port-map, ingress, in-cluster Service, tunnel), **pass the host on the docs URL** — you will do this a lot:
+
+```text
+# point Try-it-out at a different host:port
+/api-docs/index.html?host=127.0.0.1:18080&scheme=http
+
+# in-cluster Service from a port-forwarded docs UI
+/api-docs/index.html?host=cluster-utils-api.default.svc.cluster.local:8080&scheme=http
+
+# public ingress
+/api-docs/index.html?host=api.example.com&scheme=https
+```
+
+| Query | Example | What it does |
+|-------|---------|----------------|
+| `host` | `my-svc.ns.svc:8080` | Host:port **Execute** / Try-it-out uses |
+| `scheme` | `http` or `https` | Scheme for those calls |
+| `theme` | `light` | Stock bright Swagger (dark is default) |
+
+Bookmark the full URL once; every open keeps that target.
+
+#### Or set it once at process start (env)
 
 | Env | Example | Purpose |
 |-----|---------|---------|
-| `SWAGGER_HOST` | `api.example.com` or `cluster-utils-api.ns.svc:8080` | Host:port Swagger “Try it out” calls |
-| `SWAGGER_SCHEME` | `https` or `http` | Scheme for those calls |
+| `SWAGGER_HOST` | `api.example.com` or `cluster-utils-api.ns.svc:8080` | Default host:port for Try-it-out |
+| `SWAGGER_SCHEME` | `https` or `http` | Default scheme |
 
-Per-request override still works and wins over env:  
-`/api-docs/index.html?host=127.0.0.1:18080&scheme=http`
+**Priority:** query `?host=&scheme=` → env `SWAGGER_*` → request Host / `X-Forwarded-Proto`.  
+(`PORT` is only the process listen port; it does **not** set the public URL.)
 
-Priority: **query → env → request Host / `X-Forwarded-Proto`**.  
-(`PORT` is only the process listen port; it does not set the public URL.)
-
-**Theme:** dark by default (Swagger UI has no real dark mode built-in; we inject CSS).  
-Stock bright UI: `/api-docs/index.html?theme=light`.
+**Theme:** dark by default (custom CSS skin — stock Swagger has no real dark mode).  
+Light: `?theme=light`.
 
 ---
 

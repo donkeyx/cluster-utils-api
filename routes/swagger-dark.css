@@ -222,9 +222,9 @@ body::after {
   position: relative;
   overflow: hidden;
 }
-/* terminal session banner */
+/* terminal session banner — live host is in the description body (server-injected) */
 .swagger-ui .info::before {
-  content: "$> session opened · github.com/donkeyx · /a/* needs Bearer AUTH_TOKEN";
+  content: "$> session opened · Try-it-out host is below · override with ?host=&scheme= · /a/* needs Bearer AUTH_TOKEN";
   display: block;
   font-family: var(--cu-mono);
   font-size: 11.5px;
@@ -236,6 +236,24 @@ body::after {
   border-bottom: 1px dashed rgba(34, 211, 166, 0.25);
   text-shadow: 0 0 10px rgba(34, 211, 166, 0.2);
   opacity: 0.9;
+}
+/* highlight the live target block (markdown <hr> + strong in description) */
+.swagger-ui .info .description .renderedMarkdown hr,
+.swagger-ui .info .description .markdown hr {
+  border: none;
+  border-top: 1px dashed rgba(34, 211, 166, 0.35);
+  margin: 14px 0;
+}
+.swagger-ui .info .description .renderedMarkdown strong,
+.swagger-ui .info .description .markdown strong {
+  color: var(--cu-accent-hot) !important;
+  font-family: var(--cu-mono);
+  font-weight: 700;
+}
+.swagger-ui .info .description .renderedMarkdown code,
+.swagger-ui .info .description .markdown code {
+  color: var(--cu-accent-hot) !important;
+  background: rgba(34, 211, 166, 0.1) !important;
 }
 .swagger-ui .info .title {
   color: var(--cu-text) !important;
