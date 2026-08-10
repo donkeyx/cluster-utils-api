@@ -98,6 +98,14 @@ func main() {
 		zap.String("env", getCurlCommand(port, securityToken)),
 		zap.String("probes", fmt.Sprintf("curl -sS -H 'Authorization: Bearer %s' http://localhost:%d/a/control/probes | jq", securityToken, port)),
 	)
+	// Optional fixed Try-it-out target (Swagger host/scheme). Empty = use request Host.
+	if h, s := os.Getenv("SWAGGER_HOST"), os.Getenv("SWAGGER_SCHEME"); h != "" || s != "" {
+		logger.Info("swagger public URL override (Try-it-out)",
+			zap.String("SWAGGER_HOST", h),
+			zap.String("SWAGGER_SCHEME", s),
+			zap.String("note", "query ?host=&scheme= still wins per request"),
+		)
+	}
 
 	r.Run(fmt.Sprintf(":%d", port))
 }

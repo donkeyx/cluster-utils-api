@@ -118,8 +118,19 @@ If still 401: hard-refresh swagger (stale token), confirm
 `curl -sS -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer dev' http://127.0.0.1:18080/a/env`  
 is `200`, or check `podman logs cu-api | grep '"token"'`.
 
-**Host / port:** UI uses the host you opened. Override with  
-`?host=127.0.0.1:18080&scheme=http` if needed.
+**Host / scheme (Try-it-out target):** by default the UI uses the host you opened.
+If you’re behind an ingress / port-map and that is wrong, set once at startup:
+
+| Env | Example | Purpose |
+|-----|---------|---------|
+| `SWAGGER_HOST` | `api.example.com` or `cluster-utils-api.ns.svc:8080` | Host:port Swagger “Try it out” calls |
+| `SWAGGER_SCHEME` | `https` or `http` | Scheme for those calls |
+
+Per-request override still works and wins over env:  
+`/api-docs/index.html?host=127.0.0.1:18080&scheme=http`
+
+Priority: **query → env → request Host / `X-Forwarded-Proto`**.  
+(`PORT` is only the process listen port; it does not set the public URL.)
 
 **Theme:** dark by default (Swagger UI has no real dark mode built-in; we inject CSS).  
 Stock bright UI: `/api-docs/index.html?theme=light`.

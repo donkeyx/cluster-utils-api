@@ -88,6 +88,11 @@ spec:
             #   value: "10"
             # - name: AUTH_TOKEN
             #   value: "fixed-token-for-tests"
+            # Swagger Try-it-out public URL (optional; default = request Host)
+            # - name: SWAGGER_HOST
+            #   value: cluster-utils-api.default.svc.cluster.local:8080
+            # - name: SWAGGER_SCHEME
+            #   value: http
             # --- OTEL traces (OTLP *push* to Alloy → Tempo; not scraped) ---
             # - name: OTEL_SERVICE_NAME
             #   value: cluster-utils-api

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -34,9 +35,9 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 		c.Redirect(http.StatusFound, "/api-docs/index.html")
 	})
 
-	// Swagger UI: persist Authorize token; host/scheme follow where you opened the page.
+	// Swagger UI: persist Authorize token; host/scheme for Try-it-out.
+	// Priority: ?host=&scheme= query > SWAGGER_HOST / SWAGGER_SCHEME env > request Host / X-Forwarded-Proto.
 	// Dark theme by default; ?theme=light for stock Swagger look.
-	//   /api-docs/index.html?host=my-svc:8080&scheme=http
 	r.GET("/api-docs/*any", swaggerHandler())
 
 	r.GET("/help", handlers.HelpHandler)
@@ -88,14 +89,22 @@ func swaggerHandler() gin.HandlerFunc {
 			return
 		}
 
+		// Resolve Try-it-out server URL (not the listen bind — that's PORT).
+		// 1) query  2) SWAGGER_* env  3) request
 		host := strings.TrimSpace(c.Query("host"))
+		if host == "" {
+			host = strings.TrimSpace(os.Getenv("SWAGGER_HOST"))
+		}
 		if host == "" {
 			host = c.Request.Host
 		}
 
 		scheme := strings.ToLower(strings.TrimSpace(c.Query("scheme")))
 		if scheme != "http" && scheme != "https" {
-			if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+			scheme = strings.ToLower(strings.TrimSpace(os.Getenv("SWAGGER_SCHEME")))
+		}
+		if scheme != "http" && scheme != "https" {
+			if c.Request.TLS != nil || strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https") {
 				scheme = "https"
 			} else {
 				scheme = "http"
