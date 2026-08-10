@@ -5,88 +5,63 @@ on:
     tags:
       - "v*"
     branches:
+      - "master"
       - "release/*"
+  pull_request:
+    branches:
+      - "master"
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep image names in one place so README + metadata stay aligned.
+  DOCKERHUB_IMAGE: donkeyx/cluster-utils-api
+  GHCR_IMAGE: ghcr.io/donkeyx/cluster-utils-api
 
 jobs:
-  cache:
-    runs-on: ubuntu-latest
-    environment: ci
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Cache Go packages and Docker layers
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-            /tmp/.buildx-cache
-          key: go-docker-${{ runner.os }}-${{ hashFiles('**/*.go') }}
-          restore-keys: |
-            go-docker-${{ runner.os }}-
-
   docker:
-    needs: cache
     runs-on: ubuntu-latest
     environment: ci
     permissions:
-      contents: write
+      contents: read
       packages: write
       id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: 1.21
-
-      - name: Cache Go packages (reuse cache from 'cache' job)
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: go-${{ runner.os }}-${{ hashFiles('**/*.go') }}
-          restore-keys: |
-            go-${{ runner.os }}-
-
       - name: Docker metadata setup
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/donkeyx/cluster-utils-api
-            docker.io/donkeyx/cluster-utils-api
+            ${{ env.GHCR_IMAGE }}
+            docker.io/${{ env.DOCKERHUB_IMAGE }}
           tags: |
             type=sha
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}
             type=semver,pattern={{major}}.{{minor}}
-          branches: |
-            release/*
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        # with:
-        #   driver-opts: |
-        #     image=moby/buildkit:v0.15.0
-        #   buildkitd-flags: --debug
-
 
       - name: Login to Docker Hub
+        if: github.event_name != 'pull_request' && vars.DOCKERHUB_USERNAME != ''
         uses: docker/login-action@v3
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -94,12 +69,23 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+      - name: Update DockerHub README
+        if: github.event_name != 'pull_request' && vars.DOCKERHUB_USERNAME != ''
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_IMAGE }}
+          readme-filepath: ./README.md
