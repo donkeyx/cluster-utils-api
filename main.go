@@ -60,10 +60,15 @@ func main() {
 		zap.String("version", Version),
 		zap.String("gitHash", GitHash),
 	)
-	logger.Info("Security Token", zap.String("token", securityToken))
-	logger.Info("Curl Command", zap.String("command", getCurlCommand(port, securityToken)))
-	logger.Info("Probe control", zap.String("command",
-		fmt.Sprintf("curl -sS -H 'Authorization: Bearer %s' http://localhost:%d/a/control/probes | jq", securityToken, port)))
+	// Greppable startup lines so people can find the bearer for /a/* endpoints.
+	logger.Info("auth token for /a/* endpoints (Authorization: Bearer <token>)",
+		zap.String("token", securityToken),
+		zap.String("header", "Authorization: Bearer "+securityToken),
+	)
+	logger.Info("example curl with auth",
+		zap.String("env", getCurlCommand(port, securityToken)),
+		zap.String("probes", fmt.Sprintf("curl -sS -H 'Authorization: Bearer %s' http://localhost:%d/a/control/probes | jq", securityToken, port)),
+	)
 
 	r.Run(fmt.Sprintf(":%d", port))
 }
