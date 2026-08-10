@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -15,18 +16,31 @@ func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
 		// Process the request
 		c.Next()
 
-		// Log request and response details
-		end := time.Now()
-		latency := end.Sub(start)
+		// Process the request
+		latency := time.Since(start)
 
-		logger.Info("Request",
+		fields := []zap.Field{
 			zap.String("method", c.Request.Method),
 			zap.String("path", c.Request.URL.Path),
 			zap.String("ip", c.ClientIP()),
 			zap.String("user_agent", c.Request.UserAgent()),
 			zap.Int("status", c.Writer.Status()),
 			zap.Duration("latency", latency),
-		)
+		}
+		// join mesh access logs ↔ Tempo
+		if rid := c.Writer.Header().Get("X-Request-Id"); rid != "" {
+			fields = append(fields, zap.String("request_id", rid))
+		} else if rid := c.GetHeader("X-Request-Id"); rid != "" {
+			fields = append(fields, zap.String("request_id", rid))
+		}
+		if sc := trace.SpanFromContext(c.Request.Context()).SpanContext(); sc.IsValid() {
+			fields = append(fields,
+				zap.String("trace_id", sc.TraceID().String()),
+				zap.String("span_id", sc.SpanID().String()),
+			)
+		}
+
+		logger.Info("Request", fields...)
 	}
 }
 

@@ -10,16 +10,23 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/donkeyx/cluster-utils-api/handlers"
 	"github.com/donkeyx/cluster-utils-api/middleware"
+	"github.com/donkeyx/cluster-utils-api/otelsetup"
 	"github.com/donkeyx/cluster-utils-api/routes"
 
+	"net/http"
+
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -39,8 +46,26 @@ func main() {
 	handlers.SetBuildInfo(Version, GitHash)
 	handlers.InitProbesFromEnv()
 
+	// Traces: OTLP *push* to Alloy/collector (not scraped). No-op if endpoint unset.
+	ctx := context.Background()
+	otelShutdown, err := otelsetup.Init(ctx, "cluster-utils-api", Version, logger)
+	if err != nil {
+		logger.Fatal("otel init failed", zap.Error(err))
+	}
+	defer func() {
+		shCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := otelShutdown(shCtx); err != nil {
+			logger.Warn("otel shutdown", zap.Error(err))
+		}
+	}()
+
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	// Order: create span → mesh attrs + echo ids → metrics → logs → recover
+	r.Use(otelgin.Middleware("cluster-utils-api", otelgin.WithFilter(otelPathFilter)))
+	r.Use(traceAndRequestIDHeaders())
+	r.Use(handlers.MetricsMiddleware())
 	r.Use(middleware.LoggerMiddleware(logger))
 	r.Use(gin.Recovery())
 
@@ -105,4 +130,41 @@ func getEnvOrDefault(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// otelPathFilter skips ultra-noisy probes/metrics by default so Tempo isn't flooded.
+// Set OTEL_TRACE_PROBES=true to include them when you're debugging probe behaviour itself.
+func otelPathFilter(r *http.Request) bool {
+	if os.Getenv("OTEL_TRACE_PROBES") == "true" {
+		return true
+	}
+	switch r.URL.Path {
+	case "/livez", "/readyz", "/startupz",
+		"/health", "/healthz", "/ready", "/startup",
+		"/metrics", "/ping":
+		return false
+	default:
+		return true
+	}
+}
+
+// traceAndRequestIDHeaders:
+//   - attaches Istio/Envoy x-request-id (and friends) onto the span
+//   - echoes X-Trace-Id (OTEL) and X-Request-Id (mesh) on the response for easy curl ↔ Tempo/access-log joins
+func traceAndRequestIDHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		reqID := otelsetup.AnnotateMeshHeaders(c.Request.Context(), c.GetHeader)
+		c.Next()
+
+		sc := trace.SpanFromContext(c.Request.Context()).SpanContext()
+		if sc.IsValid() {
+			c.Writer.Header().Set("X-Trace-Id", sc.TraceID().String())
+		}
+		// Prefer inbound mesh id; otherwise leave empty (don't invent — Envoy owns that space)
+		if reqID != "" {
+			c.Writer.Header().Set("X-Request-Id", reqID)
+		} else if inbound := c.GetHeader("X-Request-Id"); inbound != "" {
+			c.Writer.Header().Set("X-Request-Id", inbound)
+		}
+	}
 }

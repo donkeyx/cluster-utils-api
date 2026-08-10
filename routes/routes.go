@@ -19,7 +19,7 @@ import (
 var swaggerInfoMu sync.Mutex
 
 func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
-	r.Use(handlers.MetricsMiddleware())
+	// Middleware (otel / metrics / log / recover) is registered in main before this.
 
 	// Redirect to swagger docs
 	r.GET("/", func(c *gin.Context) {

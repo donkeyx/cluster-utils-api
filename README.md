@@ -378,7 +378,22 @@ curl -sS localhost:8080/version | jq
 # {"version":"...","gitHash":"...","hostname":"..."}
 ```
 
-### 12. From inside the cluster (with cluster-utils shell)
+### 12. Traces + Istio-style request ids
+
+```bash
+# simulate gateway/mesh headers
+curl -sS -D- \
+  -H 'X-Request-Id: istio-style-id-001' \
+  -H 'traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01' \
+  localhost:8080/debug -o /dev/null | grep -iE 'x-trace-id|x-request-id'
+
+# with OTEL enabled, X-Trace-Id is the Tempo id; X-Request-Id echoes the mesh id
+# logs: {"msg":"Request","trace_id":"...","request_id":"istio-style-id-001",...}
+```
+
+See **Observability** for push vs scrape and full header table.
+
+### 13. From inside the cluster (with cluster-utils shell)
 
 ```bash
 # port-forward
@@ -472,7 +487,8 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | `GET /ping` | `PONG` (not a kube probe) |
 | `GET /headers` | request headers |
 | `GET /debug` | hostname / ip / headers / uri |
-| `GET /metrics` | prometheus (OpenMetrics): request count/latency/in-flight + Go/process |
+| `GET /metrics` | prometheus **scrape** (OpenMetrics): request count/latency/in-flight + Go/process |
+| OTEL traces | **push** OTLP to Alloy/collector (not scrape) — see Observability |
 | `GET /status/:code` | respond with that http status (100-599) |
 | `GET /delay/:seconds` | sleep then 200 (cap `MAX_DELAY_SECONDS`, default 120) |
 | `ANY /echo` | bounce method / query / headers / body |
@@ -487,6 +503,134 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | `PORT` | `8080` | listen port |
 | `AUTH_TOKEN` | random each start | fixed bearer for `/a/*` if set |
 | `MAX_DELAY_SECONDS` | `120` (hard max 600) | cap for `/delay`, probe delays, proxy timeouts |
+
+---
+
+## Observability (metrics vs traces)
+
+Two different pipelines — don't mix them up:
+
+| Signal | How it leaves the app | Endpoint / protocol | Typical sink |
+|--------|----------------------|---------------------|--------------|
+| **Metrics** | **Scrape** (pull) | `GET /metrics` Prometheus/OpenMetrics | Alloy `prometheus.scrape` → Mimir/Prometheus |
+| **Traces** | **Push** | **OTLP** http/protobuf (default) or grpc | Alloy OTLP receiver → **Tempo** |
+| **Logs** | stdout JSON (zap) | not OTLP yet | Alloy/loki.source.kubernetes → Loki |
+
+Traces are **not** scraped. The app **exports** spans to a collector. Grafana Alloy is the usual middle hop: receive OTLP → forward to Tempo.
+
+### How end-to-end tracing works (Istio / meshes)
+
+Normal path in 2024–26 stacks:
+
+1. **Edge / sidecar (Envoy, Istio, Linkerd)** accepts the request and either  
+   - continues an existing **W3C `traceparent`**, or  
+   - creates/propagates **B3** (`x-b3-traceid`, …) if the mesh is still on Zipkin-style config  
+2. **App SDKs** extract that context, create child spans, inject the same headers on outbound calls  
+3. App **pushes** spans via OTLP → Alloy → Tempo  
+4. **`x-request-id`** (Envoy/Istio) is a **separate correlation id** used in access logs — it is *not* the OTEL trace id. Join them by putting `x-request-id` on the span (we do) and echoing both on the response.
+
+| Header | What it is | We do |
+|--------|------------|--------|
+| `traceparent` / `tracestate` | W3C trace context (modern default) | extract + inject |
+| `x-b3-*` / `b3` | Zipkin B3 (common with Istio) | extract + inject |
+| `uber-trace-id` | Jaeger | extract + inject |
+| `x-request-id` | Envoy request id (logs) | span attr `http.request_id` + response echo |
+| `x-correlation-id` | app/gateway variant | span attr + echo if present |
+
+So: we **match** mesh traffic by speaking **W3C + B3 + Jaeger**, and we **use** Istio’s request id as an attribute / response header so you can jump from Envoy logs to Tempo (`X-Trace-Id`).
+
+### Defaults (when env is unset)
+
+| Variable | Default here |
+|----------|----------------|
+| export / SDK | **disabled (no-op)** until `OTEL_EXPORTER_OTLP_ENDPOINT` (or traces endpoint) is set |
+| `OTEL_SERVICE_NAME` | `cluster-utils-api` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` (port **4318** on Alloy) |
+| `OTEL_TRACE_SAMPLE_RATIO` | `1.0` (all traces when enabled) |
+| `OTEL_TRACE_PROBES` | off (no spans for `/livez` `/readyz` `/startupz` `/metrics` `/ping`) |
+| propagators | always **tracecontext + baggage + b3 + jaeger** |
+| `OTEL_EXPORTER_OTLP_INSECURE` | unset (exporter default); set `"true"` in-cluster without TLS |
+
+On **every startup** we log a single line `otel config (effective)` with enabled flag, endpoints, protocol, sample ratio, probe tracing, and propagators — grep pod logs for `otel config`.
+
+### Enable traces (OTLP push)
+
+```yaml
+env:
+  - name: OTEL_SERVICE_NAME
+    value: cluster-utils-api
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "alloy.observability.svc.cluster.local:4318"   # http/protobuf default
+  - name: OTEL_EXPORTER_OTLP_PROTOCOL
+    value: http/protobuf   # or grpc (often :4317)
+  - name: OTEL_EXPORTER_OTLP_INSECURE
+    value: "true"          # TLS off inside the mesh
+  # optional:
+  # - name: OTEL_TRACE_SAMPLE_RATIO
+  #   value: "1.0"
+  # - name: OTEL_SDK_DISABLED
+  #   value: "true"
+  # - name: OTEL_TRACE_PROBES
+  #   value: "true"   # also span kube probes (noisy)
+```
+
+What gets instrumented:
+
+- **Inbound HTTP** — Gin (`otelgin`) + mesh header attributes  
+- **Outbound `/a/proxy`** — `otelhttp` client span + header inject east-west  
+- **Response** `X-Trace-Id` (OTEL) and `X-Request-Id` (if the mesh/client sent one)
+
+```bash
+curl -sS -D- -H 'X-Request-Id: demo-from-gateway' localhost:8080/debug -o /dev/null | grep -iE 'x-trace-id|x-request-id'
+```
+
+**Important:** `X-Request-Id` (Istio/Envoy) ≠ `X-Trace-Id` (OpenTelemetry/Tempo).  
+They are both useful; we keep both. In Tempo, search by trace id, or by span attribute `http.request_id` when the mesh sent a request id. Pod logs include `trace_id` + `request_id` on each request line when present.
+
+### Join Envoy / Istio access logs ↔ Tempo
+
+```bash
+# 1) call through the mesh (or simulate Envoy's header)
+curl -sS -D /tmp/hdrs -H 'X-Request-Id: 0a1b2c3d-demo' localhost:8080/debug -o /dev/null
+grep -iE 'x-trace-id|x-request-id' /tmp/hdrs
+
+# 2) app logs (same ids)
+# kubectl logs deploy/cluster-utils-api | grep 0a1b2c3d-demo
+
+# 3) Tempo: search TraceID = value of X-Trace-Id
+#    or attribute http.request_id = 0a1b2c3d-demo
+```
+
+On boot, always check:
+
+```bash
+kubectl logs deploy/cluster-utils-api | grep 'otel config'
+# → enabled, endpoint, protocol, sample_ratio, propagators, mesh_headers, …
+```
+
+### Alloy sketch
+
+```hcl
+// metrics: scrape this app
+prometheus.scrape "cu_api" {
+  targets      = [{ __address__ = "cluster-utils-api-svc:8080" }]
+  metrics_path = "/metrics"
+  forward_to   = [prometheus.remote_write.mimir.receiver]
+}
+
+// traces: receive OTLP *push* from the app
+otelcol.receiver.otlp "default" {
+  http { endpoint = "0.0.0.0:4318" }
+  grpc { endpoint = "0.0.0.0:4317" }
+  output { traces = [otelcol.exporter.otlp.tempo.input] }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client { endpoint = "tempo:4317" tls { insecure = true } }
+}
+```
+
+Istio tip: prefer mesh config that emits **W3C** (or dual W3C+B3). If you only have B3 today, our B3 propagator still joins the chain.
 
 ---
 
