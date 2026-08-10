@@ -15,9 +15,9 @@ import (
 	"os"
 	"strconv"
 
-	"cu-api/handlers"
-	"cu-api/middleware"
-	"cu-api/routes"
+	"github.com/donkeyx/cluster-utils-api/handlers"
+	"github.com/donkeyx/cluster-utils-api/middleware"
+	"github.com/donkeyx/cluster-utils-api/routes"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"cu-api/docs"
-	"cu-api/handlers"
-	"cu-api/middleware"
+	"github.com/donkeyx/cluster-utils-api/docs"
+	"github.com/donkeyx/cluster-utils-api/handlers"
+	"github.com/donkeyx/cluster-utils-api/middleware"
 	"net/http"
 	"strings"
 	"sync"

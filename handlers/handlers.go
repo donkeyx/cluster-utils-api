@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Build info injected from main (ldflags).
@@ -20,20 +18,6 @@ var (
 	AppGitHash = "unknown"
 )
 
-var (
-	requestsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests.",
-		},
-		[]string{"method", "path", "status"},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(requestsTotal)
-}
-
 // SetBuildInfo lets main push version/git hash from ldflags.
 func SetBuildInfo(version, gitHash string) {
 	if version != "" {
@@ -41,31 +25,6 @@ func SetBuildInfo(version, gitHash string) {
 	}
 	if gitHash != "" {
 		AppGitHash = gitHash
-	}
-}
-
-// MetricsMiddleware counts requests for /metrics.
-func MetricsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next()
-		path := c.FullPath()
-		if path == "" {
-			path = c.Request.URL.Path
-		}
-		requestsTotal.WithLabelValues(c.Request.Method, path, strconv.Itoa(c.Writer.Status())).Inc()
-	}
-}
-
-// @Summary Prometheus metrics
-// @Description Prometheus scrape endpoint
-// @ID metrics
-// @Produce plain
-// @Success 200 {string} string "metrics"
-// @Router /metrics [get]
-func PrometheusMetricsHandler() gin.HandlerFunc {
-	h := promhttp.Handler()
-	return func(c *gin.Context) {
-		h.ServeHTTP(c.Writer, c.Request)
 	}
 }
 

@@ -455,7 +455,7 @@ paths:
       summary: Liveness (livez)
   /metrics:
     get:
-      description: Prometheus scrape endpoint
+      description: Prometheus scrape endpoint (Go + process + HTTP RED metrics)
       operationId: metrics
       produces:
       - text/plain

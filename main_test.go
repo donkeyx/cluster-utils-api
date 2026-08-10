@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	"cu-api/handlers"
-	"cu-api/routes"
+	"github.com/donkeyx/cluster-utils-api/handlers"
+	"github.com/donkeyx/cluster-utils-api/routes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -287,7 +287,10 @@ func TestMetrics(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "http_requests_total")
+	body := rr.Body.String()
+	assert.Contains(t, body, "http_requests_total")
+	assert.Contains(t, body, "http_request_duration_seconds")
+	assert.Contains(t, body, "go_goroutines")
 }
 
 func TestProxyRequiresAuth(t *testing.T) {

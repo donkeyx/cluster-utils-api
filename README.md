@@ -472,7 +472,7 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | `GET /ping` | `PONG` (not a kube probe) |
 | `GET /headers` | request headers |
 | `GET /debug` | hostname / ip / headers / uri |
-| `GET /metrics` | prometheus |
+| `GET /metrics` | prometheus (OpenMetrics): request count/latency/in-flight + Go/process |
 | `GET /status/:code` | respond with that http status (100-599) |
 | `GET /delay/:seconds` | sleep then 200 (cap `MAX_DELAY_SECONDS`, default 120) |
 | `ANY /echo` | bounce method / query / headers / body |

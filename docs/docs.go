@@ -533,7 +533,7 @@ const docTemplate = `{
         },
         "/metrics": {
             "get": {
-                "description": "Prometheus scrape endpoint",
+                "description": "Prometheus scrape endpoint (Go + process + HTTP RED metrics)",
                 "produces": [
                     "text/plain"
                 ],

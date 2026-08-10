@@ -6,8 +6,11 @@ GIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE := $(shell date)
 BUILD_FLAGS := -ldflags="-w -s -X main.Version=$(VERSION) -X main.GitHash=$(GIT_HASH)"
 
+# Pin tool versions (reproducible local + CI)
+SWAG_VERSION := v1.16.6
+
 # Phony targets
-.PHONY: all build test clean deps tools update build-all
+.PHONY: all build test clean deps tools swagger update build-all
 
 # Targets
 all: clean deps test build-all
@@ -23,19 +26,33 @@ test:
 
 clean:
 	go clean
-	find $(BINARY_PATH) -type f ! -name 'keep' -delete
+	find $(BINARY_PATH) -type f ! -name 'keep' -delete 2>/dev/null || true
 
 # Reproducible: download locked modules only (used by Docker)
 deps:
 	go mod download
 
-# Local tooling (swagger regen, etc.)
+# Local tooling — pinned, not @latest
 tools:
-	go install github.com/swaggo/swag/cmd/swag@latest
+	go install github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
 
-# Explicit dependency upgrades (local / deliberate only)
+# Regen OpenAPI + gin docs from annotations
+swagger: tools
+	swag init -g main.go -o docs
+
+# Deliberate upgrades of *direct* deps only (never run naked go get -u ./... in Docker/CI)
 update:
-	go get -u ./...
+	go get github.com/gin-gonic/gin@latest
+	go get github.com/prometheus/client_golang@latest
+	go get github.com/stretchr/testify@latest
+	go get github.com/swaggo/files@latest
+	go get github.com/swaggo/gin-swagger@latest
+	go get github.com/swaggo/swag@latest
+	go get go.uber.org/zap@latest
+	go get golang.org/x/net@latest
+	go get golang.org/x/crypto@latest
+	go get golang.org/x/sys@latest
+	go get golang.org/x/text@latest
 	go mod tidy
 
 build-all:
