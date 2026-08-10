@@ -19,13 +19,18 @@ spec:
     spec:
       containers:
         - name: cluster-utils-api
-          image: donkeyx/cluster-utils-api:latest
-          imagePullPolicy: Always
+          # Prefer a version tag so kube default pull policy is IfNotPresent.
+          # :latest defaults to Always even if you omit imagePullPolicy.
+          image: donkeyx/cluster-utils-api:2.5.0
           ports:
             - name: http
               containerPort: 8080
-          # Short timeouts so LIVE/READY/STARTUP delaySeconds are easy to trip.
-          # startup runs until first success, then kube moves on to live+ready.
+          # Probes — close to kube defaults; short timeout so app delaySeconds demos work.
+          # Defaults if omitted: periodSeconds=10, timeoutSeconds=1, successThreshold=1,
+          # failureThreshold=3, initialDelaySeconds=0.
+          #
+          # startup: only until first success, then live+ready take over.
+          #   period 2 × failureThreshold 30 ≈ 60s max cold-start window.
           startupProbe:
             httpGet:
               path: /startupz
@@ -33,6 +38,8 @@ spec:
             periodSeconds: 2
             timeoutSeconds: 1
             failureThreshold: 30
+            successThreshold: 1
+          # liveness: restart if process is wedged (defaults are fine for this app)
           livenessProbe:
             httpGet:
               path: /livez
@@ -40,13 +47,16 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 1
             failureThreshold: 3
+            successThreshold: 1
+          # readiness: leave Service endpoints if not ready (~30s of fails with defaults)
           readinessProbe:
             httpGet:
               path: /readyz
               port: http
-            periodSeconds: 5
+            periodSeconds: 10
             timeoutSeconds: 1
-            failureThreshold: 2
+            failureThreshold: 3
+            successThreshold: 1
           env:
             - name: PORT
               value: "8080"
@@ -91,11 +101,11 @@ spec:
             #   value: "true"
           resources:
             requests:
-              cpu: "0.1"
+              cpu: "100m"
               memory: "50Mi"
             limits:
-              cpu: "0.5"
-              memory: 100Mi
+              cpu: "500m"
+              memory: "100Mi"
 
 ---
 apiVersion: v1
