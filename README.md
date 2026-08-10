@@ -522,14 +522,23 @@ env:
   #   value: "1.0"
   # - name: OTEL_SDK_DISABLED
   #   value: "true"
+  # - name: OTEL_TRACE_PROBES
+  #   value: "true"   # also span /livez /readyz /startupz (noisy; off by default)
 ```
 
 What gets instrumented:
 
-- **Inbound HTTP** — Gin middleware (`otelgin`): one span per request, W3C `traceparent` extracted
+- **Inbound HTTP** — Gin middleware (`otelgin`): one span per request, W3C `traceparent` extracted  
+  (probes + `/metrics` + `/ping` skipped unless `OTEL_TRACE_PROBES=true`)
 - **Outbound `/a/proxy`** — `otelhttp` client transport: child span + propagates context east-west
+- **Response header** `X-Trace-Id` — copy into Tempo search after a curl
 
 So a north-south hit that proxies east-west shows as a **linked trace** in Tempo if both sides (or at least this hop) export OTLP.
+
+```bash
+# see the trace id for a request
+curl -sS -D- localhost:8080/debug -o /dev/null | grep -i x-trace-id
+```
 
 ### Alloy sketch
 

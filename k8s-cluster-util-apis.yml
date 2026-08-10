@@ -77,6 +77,18 @@ spec:
             #   value: "10"
             # - name: AUTH_TOKEN
             #   value: "fixed-token-for-tests"
+            # --- OTEL traces (OTLP *push* to Alloy → Tempo; not scraped) ---
+            # - name: OTEL_SERVICE_NAME
+            #   value: cluster-utils-api
+            # - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            #   value: alloy.observability.svc.cluster.local:4318
+            # - name: OTEL_EXPORTER_OTLP_PROTOCOL
+            #   value: http/protobuf
+            # - name: OTEL_EXPORTER_OTLP_INSECURE
+            #   value: "true"
+            # include kube probe paths in traces (off by default — noisy)
+            # - name: OTEL_TRACE_PROBES
+            #   value: "true"
           resources:
             requests:
               cpu: "0.1"

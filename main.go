@@ -22,8 +22,11 @@ import (
 	"github.com/donkeyx/cluster-utils-api/otelsetup"
 	"github.com/donkeyx/cluster-utils-api/routes"
 
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -59,8 +62,9 @@ func main() {
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	// Order: create span → metrics → logs → recover
-	r.Use(otelgin.Middleware("cluster-utils-api"))
+	// Order: create span → echo trace id → metrics → logs → recover
+	r.Use(otelgin.Middleware("cluster-utils-api", otelgin.WithFilter(otelPathFilter)))
+	r.Use(traceIDResponseHeader())
 	r.Use(handlers.MetricsMiddleware())
 	r.Use(middleware.LoggerMiddleware(logger))
 	r.Use(gin.Recovery())
@@ -126,4 +130,31 @@ func getEnvOrDefault(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// otelPathFilter skips ultra-noisy probes/metrics by default so Tempo isn't flooded.
+// Set OTEL_TRACE_PROBES=true to include them when you're debugging probe behaviour itself.
+func otelPathFilter(r *http.Request) bool {
+	if os.Getenv("OTEL_TRACE_PROBES") == "true" {
+		return true
+	}
+	switch r.URL.Path {
+	case "/livez", "/readyz", "/startupz",
+		"/health", "/healthz", "/ready", "/startup",
+		"/metrics", "/ping":
+		return false
+	default:
+		return true
+	}
+}
+
+// traceIDResponseHeader lets you correlate curl ↔ Tempo without digging headers on the way in.
+func traceIDResponseHeader() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+		sc := trace.SpanFromContext(c.Request.Context()).SpanContext()
+		if sc.IsValid() {
+			c.Writer.Header().Set("X-Trace-Id", sc.TraceID().String())
+		}
+	}
 }
