@@ -22,7 +22,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get the env variables available to the api. This is behind auth under /a/",
+                "description": "Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/",
                 "produces": [
                     "application/json"
                 ],
@@ -62,7 +62,7 @@ const docTemplate = `{
         },
         "/debug": {
             "get": {
-                "description": "Get lots of info from running container headers/ips",
+                "description": "Hostname, client ip, headers, uri — good for routing tests",
                 "produces": [
                     "application/json"
                 ],
@@ -72,7 +72,137 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/delay/{seconds}": {
+            "get": {
+                "description": "Sleep N seconds (max 30) then return 200. Useful for timeout / slow upstream tests",
+                "produces": [
+                    "text/plain"
+                ],
+                "summary": "Delay then OK",
+                "operationId": "delay",
+                "parameters": [
+                    {
+                        "type": "number",
+                        "description": "seconds to sleep (max 30)",
+                        "name": "seconds",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "delayed",
+                        "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/echo": {
+            "get": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -80,7 +210,7 @@ const docTemplate = `{
         },
         "/headers": {
             "get": {
-                "description": "Get the headers recieved by the api",
+                "description": "Headers as seen by the app (handy behind ingress/ALB)",
                 "produces": [
                     "application/json"
                 ],
@@ -90,7 +220,10 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "string"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -98,15 +231,35 @@ const docTemplate = `{
         },
         "/health": {
             "get": {
-                "description": "Get the health of the api",
+                "description": "Liveness style check. Fail with env HEALTHY=false or ?ok=0",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
                 "summary": "Get health",
                 "operationId": "health",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "set 0/false to force unhealthy",
+                        "name": "ok",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "same as ok",
+                        "name": "healthy",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Unhealthy",
                         "schema": {
                             "type": "string"
                         }
@@ -116,15 +269,74 @@ const docTemplate = `{
         },
         "/healthz": {
             "get": {
-                "description": "Get the health of the api",
+                "description": "Liveness style check. Fail with env HEALTHY=false or ?ok=0",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
                 "summary": "Get healthz",
                 "operationId": "healthz",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "set 0/false to force unhealthy",
+                        "name": "ok",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "same as ok",
+                        "name": "healthy",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Unhealthy",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/help": {
+            "get": {
+                "description": "Quick map of useful routes",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Help",
+                "operationId": "help",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics": {
+            "get": {
+                "description": "Prometheus scrape endpoint",
+                "produces": [
+                    "text/plain"
+                ],
+                "summary": "Prometheus metrics",
+                "operationId": "metrics",
+                "responses": {
+                    "200": {
+                        "description": "metrics",
                         "schema": {
                             "type": "string"
                         }
@@ -134,9 +346,9 @@ const docTemplate = `{
         },
         "/ping": {
             "get": {
-                "description": "Get the readyness of the api",
+                "description": "Simple alive check",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
                 "summary": "Get ping",
                 "operationId": "ping",
@@ -152,15 +364,35 @@ const docTemplate = `{
         },
         "/ready": {
             "get": {
-                "description": "Get the readyness of the api",
+                "description": "Readiness check. Fail with env READY=false or ?ok=0 so you can watch k8s/ECS kick the pod",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
                 "summary": "Get ready",
                 "operationId": "ready",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "set 0/false to force not ready",
+                        "name": "ok",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "same as ok",
+                        "name": "ready",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Ready",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Not Ready",
                         "schema": {
                             "type": "string"
                         }
@@ -170,17 +402,85 @@ const docTemplate = `{
         },
         "/readyz": {
             "get": {
-                "description": "Get the readyness of the api",
+                "description": "Readiness check. Fail with env READY=false or ?ok=0",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
                 "summary": "Get readyz",
                 "operationId": "readyz",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "set 0/false to force not ready",
+                        "name": "ok",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "same as ok",
+                        "name": "ready",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Ready",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Not Ready",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/status/{code}": {
+            "get": {
+                "description": "Respond with whatever http status you pass (100-599). Great for ingress/retry testing",
+                "produces": [
+                    "text/plain"
+                ],
+                "summary": "Fixed status code",
+                "operationId": "status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "HTTP status code",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/version": {
+            "get": {
+                "description": "What binary is running in this env",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Version / build info",
+                "operationId": "version",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "string"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -189,7 +489,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Type \"Bearer\" followed by a space and the token from the app logs on startup.",
+            "description": "Type \"Bearer\" followed by a space and the token from the app logs on startup (or AUTH_TOKEN env).",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -204,7 +504,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Cluster Util API",
-	Description:      "This is a util api which lots of endpoints making it easy to test routing/ingress/egress",
+	Description:      "Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

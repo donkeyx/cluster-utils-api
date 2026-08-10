@@ -2,9 +2,18 @@
 
 ## description
 
-Simple docker image which will stand up a flexibile api that handles most entrypoints and has all the health variations. This allows me to deploy to a cluster, ecs/eks with any entrypoint or params and it will still run and respond to health checks. Great for testing cluster setup and has endpoints for debugging routing and headers.
+HTTP side of the **cluster-utils** toolkit. Where [cluster-utils](https://github.com/donkeyx/cluster-utils) is the shell box you exec into, this is the **service you drop into an environment** to exercise the platform around it.
 
-Default route redirects into the **swagger** docs so you can poke the endpoints from the browser.
+Throw it into a namespace / ECS task / compose stack and use it to test:
+
+- **probes** — liveness / readiness style paths (`/health`, `/healthz`, `/ready`, `/readyz`, `/ping`)
+- **routing & ingress** — hit it through a service, ingress, ALB, mesh; see what actually arrives
+- **headers & identity** — what the proxy rewrote, client IP, host, path (`/headers`, `/debug`, `/echo`)
+- **config / params in the env** — dump process env behind auth (`/a/env`) so you can check secrets, configmaps, task defs actually landed
+- **bad / slow upstreams** — force status codes and delays (`/status/503`, `/delay/5`)
+- **any entrypoint noise** — binary is also linked as `node` / `npm` so broken charts that call weird commands still come up and serve the api
+
+More endpoints will keep landing here as we need them. Default route dumps you into **swagger** so you can poke things from the browser without memorising paths.
 
 | dockerhub: https://hub.docker.com/r/donkeyx/cluster-utils-api
 
@@ -12,9 +21,11 @@ Default route redirects into the **swagger** docs so you can poke the endpoints 
 
 | github: https://github.com/donkeyx/cluster-utils-api
 
+| pair with: https://github.com/donkeyx/cluster-utils (shell / toolkit image)
+
 ## Usage
 
-Most endpoints are open. Anything under `/a/` is authenticated — grab the bearer token from the container logs on startup (it rotates every restart). The app also logs a ready made curl for `/a/env`.
+Most endpoints are open. Anything under `/a/` is authenticated — grab the bearer token from the container logs on startup (it rotates every restart unless you set `AUTH_TOKEN`). The app also logs a ready made curl for `/a/env`.
 
 Swagger UI:
 
@@ -33,33 +44,32 @@ docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
 # quick route map
 curl -sS localhost:8080/help | jq
 
+# what binary is this
+curl -sS localhost:8080/version | jq
+
 # health / ping
 curl -sS localhost:8080/healthz
 curl -sS localhost:8080/ping
+
+# force probes to fail (query wins over env)
+curl -sS -o /dev/null -w '%{http_code}\n' 'localhost:8080/ready?ok=0'
+curl -sS -o /dev/null -w '%{http_code}\n' 'localhost:8080/healthz?healthy=false'
+
+# status / delay / echo — classic "is my ingress dumb" toolkit
+curl -sS -o /dev/null -w '%{http_code}\n' localhost:8080/status/418
+curl -sS localhost:8080/delay/1
+curl -sS -X POST -d '{"hi":1}' localhost:8080/echo | jq
 
 # debug routing / headers
 curl -sS localhost:8080/headers | jq
 curl -sS localhost:8080/debug | jq
 
-# env dump (needs the token from logs)
+# prometheus
+curl -sS localhost:8080/metrics | head
+
+# env dump (needs the token from logs, or AUTH_TOKEN you set)
 docker logs test-api 2>&1 | head -30
 curl -sS -H "Authorization: Bearer <token>" localhost:8080/a/env | jq
-```
-
-`/help` looks roughly like:
-
-```json
-{
-  "/": "This can be used to redirect to the swagger docs for more details",
-  "/a/env": "GET",
-  "/debug": "GET",
-  "/headers": "GET",
-  "/health": "GET",
-  "/healthz": "GET",
-  "/ping": "GET",
-  "/ready": "GET",
-  "/readyz": "GET"
-}
 ```
 
 ### Main endpoints
@@ -69,12 +79,28 @@ curl -sS -H "Authorization: Bearer <token>" localhost:8080/a/env | jq
 | `GET /` | redirect to swagger |
 | `GET /api-docs/*` | swagger ui |
 | `GET /help` | json list of routes |
-| `GET /health` `/healthz` | returns `OK` |
-| `GET /ready` `/readyz` | returns `Ready` |
+| `GET /version` | version + git hash + hostname |
+| `GET /health` `/healthz` | liveness; fail with `HEALTHY=false` or `?ok=0` |
+| `GET /ready` `/readyz` | readiness; fail with `READY=false` or `?ok=0` |
 | `GET /ping` | `PONG` |
 | `GET /headers` | request headers |
 | `GET /debug` | hostname / ip / headers / uri |
+| `GET /metrics` | prometheus |
+| `GET /status/:code` | respond with that http status (100-599) |
+| `GET /delay/:seconds` | sleep then 200 (capped at 30s) |
+| `ANY /echo` | bounce method / query / headers / body |
 | `GET /a/env` | env vars, **bearer auth** |
+
+### config knobs
+
+| env | default | what it does |
+|-----|---------|----------------|
+| `PORT` | `8080` | listen port |
+| `AUTH_TOKEN` | random each start | fixed bearer token if set |
+| `HEALTHY` | true | liveness; `false`/`0` → 503 on /health* |
+| `READY` | true | readiness; `false`/`0` → 503 on /ready* |
+
+Query overrides env for a single request: `?ok=0`, `?healthy=false`, `?ready=false`.
 
 ### run image in k8 cluster:
 
@@ -101,4 +127,4 @@ kubectl -n default port-forward svc/cluster-utils-api-svc 8080:8080
 curl -sS localhost:8080/debug | jq
 ```
 
-Probes in the manifest hit `/healthz` on container port 8080.
+Manifest has liveness on `/healthz`, readiness on `/readyz`, startup on `/healthz` (port 8080). Flip `READY`/`HEALTHY` in the deployment if you want to watch the probes react.

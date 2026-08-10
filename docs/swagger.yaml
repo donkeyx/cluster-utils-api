@@ -2,14 +2,15 @@ basePath: /
 host: localhost:8080
 info:
   contact: {}
-  description: This is a util api which lots of endpoints making it easy to test routing/ingress/egress
+  description: Drop-in HTTP util for testing probes, routing, headers, env/params
+    and more in a cluster
   title: Cluster Util API
   version: "2.0"
 paths:
   /a/env:
     get:
-      description: Get the env variables available to the api. This is behind auth
-        under /a/
+      description: Env dump so you can check secrets/configmaps/task params actually
+        landed. Behind auth under /a/
       operationId: env
       parameters:
       - default: Bearer
@@ -38,7 +39,7 @@ paths:
       summary: Get environment variables
   /debug:
     get:
-      description: Get lots of info from running container headers/ips
+      description: Hostname, client ip, headers, uri — good for routing tests
       operationId: debug
       produces:
       - application/json
@@ -46,11 +47,102 @@ paths:
         "200":
           description: OK
           schema:
-            type: string
+            additionalProperties: true
+            type: object
       summary: Debug
+  /delay/{seconds}:
+    get:
+      description: Sleep N seconds (max 30) then return 200. Useful for timeout /
+        slow upstream tests
+      operationId: delay
+      parameters:
+      - description: seconds to sleep (max 30)
+        in: path
+        name: seconds
+        required: true
+        type: number
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: delayed
+          schema:
+            type: string
+      summary: Delay then OK
+  /echo:
+    delete:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
+    get:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
+    patch:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
+    post:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
+    put:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
   /headers:
     get:
-      description: Get the headers recieved by the api
+      description: Headers as seen by the app (handy behind ingress/ALB)
       operationId: headers
       produces:
       - application/json
@@ -58,38 +150,92 @@ paths:
         "200":
           description: OK
           schema:
-            type: string
+            additionalProperties:
+              type: string
+            type: object
       summary: Get headers
   /health:
     get:
-      description: Get the health of the api
+      description: Liveness style check. Fail with env HEALTHY=false or ?ok=0
       operationId: health
+      parameters:
+      - description: set 0/false to force unhealthy
+        in: query
+        name: ok
+        type: string
+      - description: same as ok
+        in: query
+        name: healthy
+        type: string
       produces:
-      - application/json
+      - text/plain
       responses:
         "200":
           description: OK
+          schema:
+            type: string
+        "503":
+          description: Unhealthy
           schema:
             type: string
       summary: Get health
   /healthz:
     get:
-      description: Get the health of the api
+      description: Liveness style check. Fail with env HEALTHY=false or ?ok=0
       operationId: healthz
+      parameters:
+      - description: set 0/false to force unhealthy
+        in: query
+        name: ok
+        type: string
+      - description: same as ok
+        in: query
+        name: healthy
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "503":
+          description: Unhealthy
+          schema:
+            type: string
+      summary: Get healthz
+  /help:
+    get:
+      description: Quick map of useful routes
+      operationId: help
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Help
+  /metrics:
+    get:
+      description: Prometheus scrape endpoint
+      operationId: metrics
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: metrics
+          schema:
             type: string
-      summary: Get healthz
+      summary: Prometheus metrics
   /ping:
     get:
-      description: Get the readyness of the api
+      description: Simple alive check
       operationId: ping
       produces:
-      - application/json
+      - text/plain
       responses:
         "200":
           description: PONG
@@ -98,32 +244,92 @@ paths:
       summary: Get ping
   /ready:
     get:
-      description: Get the readyness of the api
+      description: Readiness check. Fail with env READY=false or ?ok=0 so you can
+        watch k8s/ECS kick the pod
       operationId: ready
+      parameters:
+      - description: set 0/false to force not ready
+        in: query
+        name: ok
+        type: string
+      - description: same as ok
+        in: query
+        name: ready
+        type: string
       produces:
-      - application/json
+      - text/plain
       responses:
         "200":
-          description: OK
+          description: Ready
+          schema:
+            type: string
+        "503":
+          description: Not Ready
           schema:
             type: string
       summary: Get ready
   /readyz:
     get:
-      description: Get the readyness of the api
+      description: Readiness check. Fail with env READY=false or ?ok=0
       operationId: readyz
+      parameters:
+      - description: set 0/false to force not ready
+        in: query
+        name: ok
+        type: string
+      - description: same as ok
+        in: query
+        name: ready
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: Ready
+          schema:
+            type: string
+        "503":
+          description: Not Ready
+          schema:
+            type: string
+      summary: Get readyz
+  /status/{code}:
+    get:
+      description: Respond with whatever http status you pass (100-599). Great for
+        ingress/retry testing
+      operationId: status
+      parameters:
+      - description: HTTP status code
+        in: path
+        name: code
+        required: true
+        type: integer
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: status body
+          schema:
+            type: string
+      summary: Fixed status code
+  /version:
+    get:
+      description: What binary is running in this env
+      operationId: version
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: string
-      summary: Get readyz
+            additionalProperties:
+              type: string
+            type: object
+      summary: Version / build info
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and the token from the app logs
-      on startup.
+      on startup (or AUTH_TOKEN env).
     in: header
     name: Authorization
     type: apiKey

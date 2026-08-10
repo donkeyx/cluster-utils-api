@@ -15,6 +15,7 @@ import (
 )
 
 func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
+	r.Use(handlers.MetricsMiddleware())
 
 	// Redirect to swagger docs
 	r.GET("/", func(c *gin.Context) {
@@ -23,6 +24,8 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 
 	r.GET("/api-docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.GET("/help", handlers.HelpHandler)
+	r.GET("/version", handlers.VersionHandler)
+	r.GET("/metrics", handlers.PrometheusMetricsHandler())
 
 	r.GET("/health", handlers.HealthHandler)
 	r.GET("/healthz", handlers.HealthzHandler)
@@ -32,6 +35,10 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	r.GET("/headers", handlers.HeadersHandler)
 	r.GET("/debug", handlers.DebugHandler)
 	r.GET("/ping", handlers.PingHandler)
+
+	r.GET("/status/:code", handlers.StatusHandler)
+	r.GET("/delay/:seconds", handlers.DelayHandler)
+	r.Any("/echo", handlers.EchoHandler)
 
 	authGroup := r.Group("/a")
 	authGroup.Use(middleware.AuthMiddleware(logger, st))
