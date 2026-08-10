@@ -378,7 +378,22 @@ curl -sS localhost:8080/version | jq
 # {"version":"...","gitHash":"...","hostname":"..."}
 ```
 
-### 12. From inside the cluster (with cluster-utils shell)
+### 12. Traces + Istio-style request ids
+
+```bash
+# simulate gateway/mesh headers
+curl -sS -D- \
+  -H 'X-Request-Id: istio-style-id-001' \
+  -H 'traceparent: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01' \
+  localhost:8080/debug -o /dev/null | grep -iE 'x-trace-id|x-request-id'
+
+# with OTEL enabled, X-Trace-Id is the Tempo id; X-Request-Id echoes the mesh id
+# logs: {"msg":"Request","trace_id":"...","request_id":"istio-style-id-001",...}
+```
+
+See **Observability** for push vs scrape and full header table.
+
+### 13. From inside the cluster (with cluster-utils shell)
 
 ```bash
 # port-forward
@@ -567,6 +582,30 @@ What gets instrumented:
 
 ```bash
 curl -sS -D- -H 'X-Request-Id: demo-from-gateway' localhost:8080/debug -o /dev/null | grep -iE 'x-trace-id|x-request-id'
+```
+
+**Important:** `X-Request-Id` (Istio/Envoy) ≠ `X-Trace-Id` (OpenTelemetry/Tempo).  
+They are both useful; we keep both. In Tempo, search by trace id, or by span attribute `http.request_id` when the mesh sent a request id. Pod logs include `trace_id` + `request_id` on each request line when present.
+
+### Join Envoy / Istio access logs ↔ Tempo
+
+```bash
+# 1) call through the mesh (or simulate Envoy's header)
+curl -sS -D /tmp/hdrs -H 'X-Request-Id: 0a1b2c3d-demo' localhost:8080/debug -o /dev/null
+grep -iE 'x-trace-id|x-request-id' /tmp/hdrs
+
+# 2) app logs (same ids)
+# kubectl logs deploy/cluster-utils-api | grep 0a1b2c3d-demo
+
+# 3) Tempo: search TraceID = value of X-Trace-Id
+#    or attribute http.request_id = 0a1b2c3d-demo
+```
+
+On boot, always check:
+
+```bash
+kubectl logs deploy/cluster-utils-api | grep 'otel config'
+# → enabled, endpoint, protocol, sample_ratio, propagators, mesh_headers, …
 ```
 
 ### Alloy sketch
