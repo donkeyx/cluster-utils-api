@@ -92,6 +92,7 @@ func HelpHandler(c *gin.Context) {
 		"/status/:code":        "GET respond with that http status",
 		"/delay/:seconds":      "GET sleep then 200 (max 30s)",
 		"/echo":                "GET/POST echo method, headers, query, body",
+		"/proxy":               "GET/POST hop to another url (east-west; forwards headers)",
 		"/a/env":               "GET env vars (bearer auth)",
 	})
 }
@@ -183,10 +184,10 @@ func StatusHandler(c *gin.Context) {
 }
 
 // @Summary Delay then OK
-// @Description Sleep N seconds (max 30) then return 200. For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead
+// @Description Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead
 // @ID delay
 // @Produce plain
-// @Param seconds path number true "seconds to sleep (max 30)"
+// @Param seconds path number true "seconds to sleep"
 // @Success 200 {string} string "delayed"
 // @Router /delay/{seconds} [get]
 func DelayHandler(c *gin.Context) {
@@ -196,9 +197,10 @@ func DelayHandler(c *gin.Context) {
 		c.String(http.StatusBadRequest, "seconds must be a number >= 0")
 		return
 	}
+	requested := secs
 	secs = clampDelay(secs)
 	time.Sleep(time.Duration(secs * float64(time.Second)))
-	c.String(http.StatusOK, "delayed=%.3fs", secs)
+	c.String(http.StatusOK, "delayed=%.3fs requested=%.3fs max=%.0fs", secs, requested, maxDelaySeconds())
 }
 
 // @Summary Echo request

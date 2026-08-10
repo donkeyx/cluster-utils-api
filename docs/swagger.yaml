@@ -54,6 +54,39 @@ definitions:
       startup:
         $ref: '#/definitions/handlers.ProbeConfig'
     type: object
+  handlers.ProxyRequest:
+    properties:
+      body:
+        description: Optional body (string; use for JSON text, form, etc.)
+        type: string
+      forwardIncomingHeaders:
+        description: |-
+          When true (default), copy inbound request headers onto the outbound call
+          (minus hop-by-hop). Good for tracing / auth / x-request-id passthrough.
+        type: boolean
+      headers:
+        additionalProperties:
+          type: string
+        description: Extra headers to set/override on the outbound request
+        type: object
+      method:
+        description: HTTP method (default GET)
+        type: string
+      raw:
+        description: |-
+          When true, return the upstream body as raw response (status + headers from upstream).
+          Default false → JSON wrap with timing + what we sent/received (better for debugging).
+        type: boolean
+      timeoutSeconds:
+        description: Timeout for the outbound call (default 10, max same as MAX_DELAY_SECONDS
+          / 300)
+        type: number
+      url:
+        description: Absolute URL to call, e.g. http://other-api:8080/debug
+        type: string
+    required:
+    - url
+    type: object
 info:
   contact: {}
   description: Drop-in HTTP util for testing probes, routing, headers, env/params
@@ -164,11 +197,12 @@ paths:
       summary: Debug
   /delay/{seconds}:
     get:
-      description: Sleep N seconds (max 30) then return 200. For probe timeouts prefer
-        LIVE/READY/STARTUP delaySeconds instead
+      description: Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default
+        120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds
+        instead
       operationId: delay
       parameters:
-      - description: seconds to sleep (max 30)
+      - description: seconds to sleep
         in: path
         name: seconds
         required: true
@@ -326,6 +360,91 @@ paths:
           schema:
             type: string
       summary: Get ping
+  /proxy:
+    get:
+      consumes:
+      - application/json
+      description: North→south hits this pod; this pod calls another URL east-west.
+        Forwards headers by default so you can test mesh/ingress propagation. Also
+        supports GET /proxy?url=
+      operationId: proxy
+      parameters:
+      - description: proxy request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ProxyRequest'
+      - description: absolute url (GET form)
+        in: query
+        name: url
+        type: string
+      - description: HTTP method for GET form (default GET)
+        in: query
+        name: method
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy / hop to another service
+    post:
+      consumes:
+      - application/json
+      description: North→south hits this pod; this pod calls another URL east-west.
+        Forwards headers by default so you can test mesh/ingress propagation. Also
+        supports GET /proxy?url=
+      operationId: proxy
+      parameters:
+      - description: proxy request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ProxyRequest'
+      - description: absolute url (GET form)
+        in: query
+        name: url
+        type: string
+      - description: HTTP method for GET form (default GET)
+        in: query
+        name: method
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Proxy / hop to another service
   /readyz:
     get:
       description: 'Kube readiness. 200 = take traffic; 503 = leave Service endpoints.

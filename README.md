@@ -1,16 +1,31 @@
-# cluster-utils-api
+# 🐴 DonkeyX's Cluster Utils API
+
+```
+╭────────────────────────────────────────╮
+|   🐴 DonkeyX's Cluster Utils API      │
+╰────────────────────────────────────────╯
+
+        //\\
+       (/oo\)   .----.
+       (____)  | API |
+        /||\   '----'
+       //||\\   🔌 Probe Mode
+      ^^ ^^ ^^
+   "Kick the tyres on the mesh!"
+```
 
 ## description
 
-HTTP side of the **cluster-utils** toolkit. Where [cluster-utils](https://github.com/donkeyx/cluster-utils) is the shell box you exec into, this is the **service you drop into an environment** to exercise the platform around it.
+HTTP side of the **cluster-utils** toolkit. Where [cluster-utils](https://github.com/donkeyx/cluster-utils) is the **shell box you exec into**, this is the **service you drop into an environment** and hit over HTTP — same donkey energy, different job.
 
 Throw it into a namespace / ECS task / compose stack and use it to test:
 
 - **probes** — real kube-style `/startupz`, `/livez`, `/readyz` with fail + delay + flap + runtime control
 - **routing & ingress** — hit it through a service, ingress, ALB, mesh; see what actually arrives
+- **east-west hops** — north-south into this pod, then `/proxy` out to another svc (headers ride along)
 - **headers & identity** — what the proxy rewrote, client IP, host, path (`/headers`, `/debug`, `/echo`)
 - **config / params in the env** — dump process env behind auth (`/a/env`) so you can check secrets, configmaps, task defs actually landed
-- **bad / slow upstreams** — force status codes and delays (`/status/503`, `/delay/5`)
+- **bad / slow upstreams** — force status codes and long delays (`/status/503`, `/delay/90`)
 - **any entrypoint noise** — binary is also linked as `node` / `npm` so broken charts that call weird commands still come up and serve the api
 
 Default route dumps you into **swagger** so you can poke things from the browser without memorising paths.
@@ -231,14 +246,72 @@ curl -sS -o /dev/null -w '%{http_code}\n' localhost:8080/status/503
 curl -sS -o /dev/null -w '%{http_code}\n' localhost:8080/status/418
 ```
 
-### 9. Which build is this pod?
+### 9. Really slow request
+
+```bash
+# sleep then 200 — default cap 120s (override with MAX_DELAY_SECONDS, hard max 600)
+curl -sS localhost:8080/delay/90
+# delayed=90.000s requested=90.000s max=120s
+
+# or make a *probe* slow (so kube timeoutSeconds trips)
+curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"ready":{"mode":"delay","delaySeconds":30}}' localhost:8080/a/control/probes | jq
+```
+
+### 10. East-west hop via north-south (`/proxy`)
+
+Pattern: **ingress → this api → another service** (mesh / NetworkPolicy / DNS / header propagation).
+
+Inbound headers are **forwarded by default** (minus hop-by-hop junk). Response is a JSON wrap with what we sent, what came back, and timing — unless `"raw": true`.
+
+```bash
+# simple GET hop (query form)
+curl -sS -H 'X-Request-Id: demo-ew-1' -H 'X-Trace: abc' \
+  'localhost:8080/proxy?url=http://other-api:8080/debug' | jq
+
+# POST form — full control
+curl -sS -X POST localhost:8080/proxy \
+  -H 'Content-Type: application/json' \
+  -H 'X-Request-Id: demo-ew-2' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "url": "http://other-api:8080/echo",
+    "method": "POST",
+    "body": "{\"ping\":true}",
+    "headers": {"Content-Type": "application/json"},
+    "timeoutSeconds": 15,
+    "forwardIncomingHeaders": true
+  }' | jq
+
+# chain: this api → other api's /debug (see if X-Request-Id survived)
+curl -sS -H 'X-Request-Id: keep-me' \
+  'localhost:8080/proxy?url=http://other-api:8080/headers' | jq '.response.body'
+
+# hop to another cluster-utils-api that is deliberately slow
+curl -sS -X POST localhost:8080/proxy -H 'Content-Type: application/json' -d '{
+  "url": "http://other-api:8080/delay/5",
+  "timeoutSeconds": 30
+}' | jq '.meta'
+```
+
+In-cluster example (service DNS):
+
+```bash
+# from laptop via port-forward to the *edge* api
+curl -sS -H 'X-Request-Id: from-laptop' \
+  "localhost:8080/proxy?url=http://cluster-utils-api-svc.other-ns.svc.cluster.local:8080/debug" | jq
+```
+
+You can also chain two apis: A `/proxy` → B `/proxy` → C `/debug` if you want multi-hop header paths.
+
+### 11. Which build is this pod?
 
 ```bash
 curl -sS localhost:8080/version | jq
 # {"version":"...","gitHash":"...","hostname":"..."}
 ```
 
-### 10. From inside the cluster (with cluster-utils shell)
+### 12. From inside the cluster (with cluster-utils shell)
 
 ```bash
 # port-forward
@@ -334,8 +407,9 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | `GET /debug` | hostname / ip / headers / uri |
 | `GET /metrics` | prometheus |
 | `GET /status/:code` | respond with that http status (100-599) |
-| `GET /delay/:seconds` | sleep then 200 |
+| `GET /delay/:seconds` | sleep then 200 (cap `MAX_DELAY_SECONDS`, default 120) |
 | `ANY /echo` | bounce method / query / headers / body |
+| `GET/POST /proxy` | east-west hop to another URL; forwards inbound headers |
 | `GET /a/env` | env vars — **auth** |
 | `GET/PUT /a/control/probes` | probe state — **auth** |
 
@@ -345,6 +419,7 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 |-----|---------|----------------|
 | `PORT` | `8080` | listen port |
 | `AUTH_TOKEN` | random each start | fixed bearer for `/a/*` if set |
+| `MAX_DELAY_SECONDS` | `120` (hard max 600) | cap for `/delay`, probe delays, proxy timeouts |
 
 ---
 

@@ -20,9 +20,24 @@ const (
 )
 
 const (
-	maxProbeDelaySec = 30.0
-	defaultFlapSec   = 5.0
+	defaultMaxDelaySec = 120.0 // /delay, probe delaySeconds, proxy timeout
+	hardMaxDelaySec    = 600.0 // absolute ceiling even if MAX_DELAY_SECONDS is wild
+	defaultFlapSec     = 5.0
 )
+
+// maxDelaySeconds is shared by probes, /delay, and /proxy timeouts.
+// Override with env MAX_DELAY_SECONDS (default 120, hard cap 600).
+func maxDelaySeconds() float64 {
+	if v, ok := os.LookupEnv("MAX_DELAY_SECONDS"); ok {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+			if f > hardMaxDelaySec {
+				return hardMaxDelaySec
+			}
+			return f
+		}
+	}
+	return defaultMaxDelaySec
+}
 
 // ProbeConfig is the knobs for one probe type (live / ready / startup).
 type ProbeConfig struct {
@@ -165,8 +180,9 @@ func clampDelay(d float64) float64 {
 	if d < 0 {
 		return 0
 	}
-	if d > maxProbeDelaySec {
-		return maxProbeDelaySec
+	max := maxDelaySeconds()
+	if d > max {
+		return max
 	}
 	return d
 }
@@ -178,8 +194,8 @@ func (c ProbeConfig) normalized() ProbeConfig {
 	if c.FlapSeconds < 0 {
 		c.FlapSeconds = 0
 	}
-	if c.FlapSeconds > maxProbeDelaySec {
-		c.FlapSeconds = maxProbeDelaySec
+	if c.FlapSeconds > maxDelaySeconds() {
+		c.FlapSeconds = maxDelaySeconds()
 	}
 	if c.FlapEvery < 0 {
 		c.FlapEvery = 0

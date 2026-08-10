@@ -289,3 +289,49 @@ func TestMetrics(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), "http_requests_total")
 }
+
+func TestProxyHopToSelf(t *testing.T) {
+	// start a real listener via httptest won't work for outbound http client —
+	// use the test server pattern
+	token := "tok"
+	gin.SetMode(gin.TestMode)
+	handlers.SetBuildInfo("test-ver", "abc123")
+	handlers.InitProbesFromEnv()
+	resetProbesForTest()
+	r := gin.New()
+	logger := setupLogger()
+	routes.SetupRouter(logger, token, r)
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	// hop: GET proxy → same server's /debug, forward a marker header
+	proxyURL := srv.URL + "/proxy?url=" + srv.URL + "/debug"
+	req, err := http.NewRequest(http.MethodGet, proxyURL, nil)
+	require.NoError(t, err)
+	req.Header.Set("X-Trace-Demo", "east-west-1")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	var wrap map[string]interface{}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&wrap))
+	assert.Contains(t, wrap, "request")
+	assert.Contains(t, wrap, "response")
+	assert.Contains(t, wrap, "meta")
+
+	// upstream /debug should have seen the forwarded header
+	respObj := wrap["response"].(map[string]interface{})
+	body := respObj["body"].(string)
+	assert.Contains(t, body, "X-Trace-Demo")
+	assert.Contains(t, body, "east-west-1")
+}
+
+func TestProxyRequiresAbsoluteURL(t *testing.T) {
+	r := setupTestRouter("tok")
+	req := httptest.NewRequest(http.MethodGet, "/proxy?url=/debug", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
