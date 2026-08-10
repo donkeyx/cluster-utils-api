@@ -56,16 +56,17 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	r.GET("/status/:code", handlers.StatusHandler)
 	r.GET("/delay/:seconds", handlers.DelayHandler)
 	r.Any("/echo", handlers.EchoHandler)
-	// east-west hop: north-south hits us, we call another svc (headers forwarded by default)
-	r.GET("/proxy", handlers.ProxyHandler)
-	r.POST("/proxy", handlers.ProxyHandler)
 
+	// Sensitive / abusable — bearer auth required (see README security section)
 	authGroup := r.Group("/a")
 	authGroup.Use(middleware.AuthMiddleware(logger, st))
 	authGroup.GET("/env", handlers.EnvHandler)
 	authGroup.GET("/control/probes", handlers.GetProbesHandler)
 	authGroup.PUT("/control/probes", handlers.PutProbesHandler)
-}
+	// open /proxy would be SSRF (scan cluster, hit metadata, etc.)
+	authGroup.GET("/proxy", handlers.ProxyHandler)
+	authGroup.POST("/proxy", handlers.ProxyHandler)
+
 
 func swaggerHandler() gin.HandlerFunc {
 	// Empty host in the generated spec would also work; we set Host from the request

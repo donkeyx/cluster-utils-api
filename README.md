@@ -40,16 +40,19 @@ Default route dumps you into **swagger** so you can poke things from the browser
 
 ## Auth (how to get the token)
 
-Most routes are open. Anything under **`/a/`** needs a bearer token:
+Most routes are open on purpose (probes, ingress debug). Anything under **`/a/`** needs a bearer token:
 
 ```http
 Authorization: Bearer <token>
 ```
 
-That covers:
+| path | why it's locked |
+|------|------------------|
+| `GET /a/env` | dumps **all env** — secrets, keys, tokens |
+| `GET/PUT /a/control/probes` | can fail live (restarts) / ready (drop traffic) |
+| `GET/POST /a/proxy` | **SSRF** if open — scan the cluster, hit metadata, pull internal APIs |
 
-- `GET /a/env` — dump process environment
-- `GET/PUT /a/control/probes` — read/flip probe modes without redeploying
+See **Security** below for the full split.
 
 ### Option 1 — fixed token (easiest for demos)
 
@@ -258,22 +261,88 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
   -d '{"ready":{"mode":"delay","delaySeconds":30}}' localhost:8080/a/control/probes | jq
 ```
 
-### 10. East-west hop via north-south (`/proxy`)
+### 10. East-west hop via north-south (`/a/proxy`) — **auth required**
 
 Pattern: **ingress → this api → another service** (mesh / NetworkPolicy / DNS / header propagation).
 
-Inbound headers are **forwarded by default** (minus hop-by-hop junk). Response is a JSON wrap with what we sent, what came back, and timing — unless `"raw": true`.
+Locked behind bearer on purpose: an open proxy is **SSRF** (anyone could make your pod call internal URLs).
+
+#### What you get back (default)
+
+Unless `"raw": true`, the HTTP response from *this* api is always **200 + JSON wrap** (even if upstream was 502). Inside that wrap you get the **full upstream response**:
+
+| field | what it is |
+|-------|------------|
+| `response.status` | status code from the other API |
+| `response.headers` | **all response headers** from the other API |
+| `response.body` | body as a string (capped ~2MB in the wrap) |
+| `request.url` / `method` / `headers` / `body` | what we actually sent east-west |
+| `meta.durationMs` | hop timing |
+| `meta.forwardIncomingHeaders` | whether inbound headers were copied |
+| `meta.forwardSensitiveHeaders` | whether Authorization/Cookie were copied |
+
+Example shape:
+
+```json
+{
+  "request": {
+    "url": "http://other-api:8080/debug",
+    "method": "GET",
+    "headers": { "X-Request-Id": ["demo"], "X-Cu-Proxy-Hop": ["pod-a"] },
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": ["application/json; charset=utf-8"]
+    },
+    "body": "{\"Hostname\":\"other-pod\", ...}"
+  },
+  "meta": {
+    "durationMs": 12,
+    "timeoutSeconds": 10,
+    "forwardIncomingHeaders": true,
+    "forwardSensitiveHeaders": false,
+    "proxyHostname": "edge-pod"
+  }
+}
+```
+
+Handy jq:
 
 ```bash
-# simple GET hop (query form)
-curl -sS -H 'X-Request-Id: demo-ew-1' -H 'X-Trace: abc' \
-  'localhost:8080/proxy?url=http://other-api:8080/debug' | jq
+# just upstream status + headers + body
+curl -sS -H "Authorization: Bearer $TOKEN" -H 'X-Request-Id: demo' \
+  "$BASE/a/proxy?url=http://other-api:8080/debug" \
+  | jq '{status: .response.status, headers: .response.headers, body: .response.body}'
+```
+
+`"raw": true` → no wrap; you get the upstream status/headers/body as the real HTTP response (harder to inspect the hop).
+
+#### Header forwarding
+
+| inbound headers | default |
+|-----------------|---------|
+| tracing / custom (`X-Request-Id`, etc.) | **forwarded** |
+| hop-by-hop (`Host`, `Connection`, `Content-Length`, …) | stripped |
+| **`Authorization` / `Cookie`** | **not** forwarded (so your `/a/*` bearer is not sent to the other svc by accident) |
+
+To forward credentials east-west on purpose: `"forwardSensitiveHeaders": true`, or set `headers.Authorization` in the JSON body.
+
+```bash
+export BASE=http://localhost:8080
+export TOKEN=dev
+
+# simple GET hop
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  -H 'X-Request-Id: demo-ew-1' -H 'X-Trace: abc' \
+  "$BASE/a/proxy?url=http://other-api:8080/debug" | jq
 
 # POST form — full control
-curl -sS -X POST localhost:8080/proxy \
+curl -sS -X POST "$BASE/a/proxy" \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -H 'X-Request-Id: demo-ew-2' \
-  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "url": "http://other-api:8080/echo",
     "method": "POST",
@@ -283,26 +352,24 @@ curl -sS -X POST localhost:8080/proxy \
     "forwardIncomingHeaders": true
   }' | jq
 
-# chain: this api → other api's /debug (see if X-Request-Id survived)
-curl -sS -H 'X-Request-Id: keep-me' \
-  'localhost:8080/proxy?url=http://other-api:8080/headers' | jq '.response.body'
+# upstream headers only
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  "$BASE/a/proxy?url=http://other-api:8080/headers" | jq '.response.headers'
 
-# hop to another cluster-utils-api that is deliberately slow
-curl -sS -X POST localhost:8080/proxy -H 'Content-Type: application/json' -d '{
-  "url": "http://other-api:8080/delay/5",
-  "timeoutSeconds": 30
-}' | jq '.meta'
+# slow peer
+curl -sS -X POST "$BASE/a/proxy" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"url":"http://other-api:8080/delay/5","timeoutSeconds":30}' | jq '.meta'
 ```
 
-In-cluster example (service DNS):
+In-cluster (service DNS) from a port-forwarded edge api:
 
 ```bash
-# from laptop via port-forward to the *edge* api
-curl -sS -H 'X-Request-Id: from-laptop' \
-  "localhost:8080/proxy?url=http://cluster-utils-api-svc.other-ns.svc.cluster.local:8080/debug" | jq
+curl -sS -H "Authorization: Bearer $TOKEN" -H 'X-Request-Id: from-laptop' \
+  "$BASE/a/proxy?url=http://cluster-utils-api-svc.other-ns.svc.cluster.local:8080/debug" | jq
 ```
 
-You can also chain two apis: A `/proxy` → B `/proxy` → C `/debug` if you want multi-hop header paths.
+Chain multi-hop if you want: A `/a/proxy` → B `/a/proxy` → C `/debug` (each hop needs a token for that api).
 
 ### 11. Which build is this pod?
 
@@ -409,9 +476,9 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | `GET /status/:code` | respond with that http status (100-599) |
 | `GET /delay/:seconds` | sleep then 200 (cap `MAX_DELAY_SECONDS`, default 120) |
 | `ANY /echo` | bounce method / query / headers / body |
-| `GET/POST /proxy` | east-west hop to another URL; forwards inbound headers |
 | `GET /a/env` | env vars — **auth** |
 | `GET/PUT /a/control/probes` | probe state — **auth** |
+| `GET/POST /a/proxy` | east-west hop; full upstream status/headers/body in wrap — **auth** |
 
 ### other config
 
@@ -420,6 +487,40 @@ curl -sS -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/
 | `PORT` | `8080` | listen port |
 | `AUTH_TOKEN` | random each start | fixed bearer for `/a/*` if set |
 | `MAX_DELAY_SECONDS` | `120` (hard max 600) | cap for `/delay`, probe delays, proxy timeouts |
+
+---
+
+## Security
+
+This image is a **cluster debug tool**, not a public SaaS. Treat it like you treat `kubectl` access.
+
+### Behind bearer (`/a/*`) — keep it that way
+
+| endpoint | risk if open |
+|----------|----------------|
+| **`/a/env`** | Full process env — **secrets, API keys, cloud creds**. Correct to lock. |
+| **`/a/control/probes`** | Fail liveness → restarts; fail readiness → blackhole traffic; flap → chaos. |
+| **`/a/proxy`** | **SSRF**: call any http(s) URL the pod can reach (other namespaces, cloud metadata `169.254.169.254`, internal admin UIs). Response can **exfiltrate** internal data (status + headers + body) to whoever called you. Also why we do **not** auto-forward `Authorization`/`Cookie` east-west. |
+
+Same auth model as `/a/env` is the right call for `/a/proxy`. If it’s reachable from an ingress without network policy, auth is the main brake.
+
+### Open on purpose (kube + ingress testing)
+
+| endpoint | notes |
+|----------|--------|
+| `/startupz` `/livez` `/readyz` (+ aliases) | **Must** be unauthenticated — kube probes send no bearer |
+| `/ping` `/version` `/help` | low sensitivity |
+| `/headers` `/debug` `/echo` | can show request headers (including if a client *sent* a secret). Fine for a debug pod; don’t put internet-wide without a gateway auth layer |
+| `/status/*` `/delay/*` | abuse = noisy DoS / long requests; cap delay; don’t expose to the open internet |
+| `/metrics` | process metrics — usually ok inside the mesh |
+| swagger `/api-docs` | documents everything including how to call `/a/*` |
+
+### Practical guidance
+
+- Prefer **ClusterIP** + port-forward / exec (as in the sample manifest) for day-to-day use  
+- If you put it on an ingress, put **auth at the edge** too — don’t rely only on the random token in logs  
+- Set **`AUTH_TOKEN`** to something you control when automating; rotate if logs are widely readable  
+- `/a/proxy` is powerful: only point `url` at targets you intend; assume the response body may contain sensitive data from the peer  
 
 ---
 

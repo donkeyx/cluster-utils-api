@@ -92,8 +92,9 @@ func HelpHandler(c *gin.Context) {
 		"/status/:code":        "GET respond with that http status",
 		"/delay/:seconds":      "GET sleep then 200 (max 30s)",
 		"/echo":                "GET/POST echo method, headers, query, body",
-		"/proxy":               "GET/POST hop to another url (east-west; forwards headers)",
 		"/a/env":               "GET env vars (bearer auth)",
+		"/a/control/probes":    "GET/PUT probe state (bearer auth)",
+		"/a/proxy":             "GET/POST east-west hop (bearer auth; SSRF-sensitive)",
 	})
 }
 

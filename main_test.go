@@ -290,9 +290,15 @@ func TestMetrics(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "http_requests_total")
 }
 
+func TestProxyRequiresAuth(t *testing.T) {
+	r := setupTestRouter("tok")
+	req := httptest.NewRequest(http.MethodGet, "/a/proxy?url=http://example.com/", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
 func TestProxyHopToSelf(t *testing.T) {
-	// start a real listener via httptest won't work for outbound http client —
-	// use the test server pattern
 	token := "tok"
 	gin.SetMode(gin.TestMode)
 	handlers.SetBuildInfo("test-ver", "abc123")
@@ -305,10 +311,10 @@ func TestProxyHopToSelf(t *testing.T) {
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	// hop: GET proxy → same server's /debug, forward a marker header
-	proxyURL := srv.URL + "/proxy?url=" + srv.URL + "/debug"
+	proxyURL := srv.URL + "/a/proxy?url=" + srv.URL + "/debug"
 	req, err := http.NewRequest(http.MethodGet, proxyURL, nil)
 	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Trace-Demo", "east-west-1")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -321,16 +327,24 @@ func TestProxyHopToSelf(t *testing.T) {
 	assert.Contains(t, wrap, "response")
 	assert.Contains(t, wrap, "meta")
 
-	// upstream /debug should have seen the forwarded header
+	// wrap includes upstream headers map
 	respObj := wrap["response"].(map[string]interface{})
+	assert.Contains(t, respObj, "headers")
+	assert.Contains(t, respObj, "status")
+	assert.Contains(t, respObj, "body")
+
 	body := respObj["body"].(string)
 	assert.Contains(t, body, "X-Trace-Demo")
 	assert.Contains(t, body, "east-west-1")
+
+	// our bearer for this api should NOT be auto-forwarded east-west
+	assert.NotContains(t, body, "Bearer "+token)
 }
 
 func TestProxyRequiresAbsoluteURL(t *testing.T) {
 	r := setupTestRouter("tok")
-	req := httptest.NewRequest(http.MethodGet, "/proxy?url=/debug", nil)
+	req := httptest.NewRequest(http.MethodGet, "/a/proxy?url=/debug", nil)
+	req.Header.Set("Authorization", "Bearer tok")
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
