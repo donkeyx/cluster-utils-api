@@ -5,7 +5,7 @@
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Click Authorize (lock icon). Value MUST be: Bearer <token>  including the word Bearer and a space. Example for local podman: Bearer dev. Token only (without Bearer) will 401.
+// @description Use the top-right Authorize lock only (not a per-operation Authorization field). Value MUST be exactly: Bearer <token>  e.g. local: Bearer dev
 
 package main
 

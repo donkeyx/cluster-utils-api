@@ -38,36 +38,45 @@ var sensitiveForwardHeaders = map[string]bool{
 // ProxyRequest is the JSON body for POST /a/proxy.
 // North-south hits this pod; we call another URL east-west (auth required — open proxy is SSRF).
 type ProxyRequest struct {
-	// Absolute URL to call, e.g. http://other-api:8080/debug
-	URL string `json:"url" binding:"required"`
+	// Absolute URL to call (demo: httpbin echoes method/headers back as JSON)
+	// example: https://httpbin.org/get
+	URL string `json:"url" example:"https://httpbin.org/get" binding:"required"`
 	// HTTP method (default GET)
-	Method string `json:"method,omitempty"`
+	// example: GET
+	Method string `json:"method,omitempty" example:"GET"`
 	// Extra headers to set/override on the outbound request
-	Headers map[string]string `json:"headers,omitempty"`
+	// example: {"X-Demo":"from-swagger"}
+	Headers map[string]string `json:"headers,omitempty" example:"X-Demo:from-swagger"`
 	// Optional body (string; use for JSON text, form, etc.)
-	Body string `json:"body,omitempty"`
+	// example: {"hello":"cluster"}
+	Body string `json:"body,omitempty" example:"{\"hello\":\"cluster\"}"`
 	// Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)
-	TimeoutSeconds float64 `json:"timeoutSeconds,omitempty"`
+	// example: 15
+	TimeoutSeconds float64 `json:"timeoutSeconds,omitempty" example:"15"`
 	// When true (default), copy inbound request headers onto the outbound call
 	// (minus hop-by-hop). Tracing headers like X-Request-Id ride along.
-	ForwardIncomingHeaders *bool `json:"forwardIncomingHeaders,omitempty"`
+	// example: true
+	ForwardIncomingHeaders *bool `json:"forwardIncomingHeaders,omitempty" example:"true"`
 	// When true, also forward Authorization / Cookie from the inbound request.
 	// Default false so your bearer token for *this* api is not sent east-west by accident.
-	ForwardSensitiveHeaders bool `json:"forwardSensitiveHeaders,omitempty"`
+	// example: false
+	ForwardSensitiveHeaders bool `json:"forwardSensitiveHeaders,omitempty" example:"false"`
 	// When true, return the upstream body as the raw HTTP response (status + headers from upstream).
 	// Default false → JSON wrap with request/response/meta (includes upstream headers + body).
-	Raw bool `json:"raw,omitempty"`
+	// example: false
+	Raw bool `json:"raw,omitempty" example:"false"`
 }
 
 // @Summary Proxy / hop to another service (auth)
-// @Description Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.
+// @Description Auth required (use Authorize lock: "Bearer dev"). North→south hits this pod; this pod calls url east-west. Response wrap includes upstream status, headers, and body. Try GET with url=https://httpbin.org/get or POST body example. Open proxy is SSRF — keep behind bearer.
 // @ID proxy
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param body body ProxyRequest true "proxy request"
-// @Param url query string false "absolute url (GET form)"
-// @Param method query string false "HTTP method for GET form (default GET)"
+// @Param body body ProxyRequest false "POST JSON body (preferred for full control). Example hits httpbin so you see headers/method echoed."
+// @Param url query string false "GET form: absolute URL to fetch" default(https://httpbin.org/get) example(https://httpbin.org/get)
+// @Param method query string false "GET form: HTTP method" default(GET) example(GET)
+// @Param timeoutSeconds query number false "GET form: outbound timeout" default(15) example(15)
 // @Success 200 {object} map[string]interface{}
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string

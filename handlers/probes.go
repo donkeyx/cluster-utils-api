@@ -41,15 +41,21 @@ func maxDelaySeconds() float64 {
 
 // ProbeConfig is the knobs for one probe type (live / ready / startup).
 type ProbeConfig struct {
-	Mode         string  `json:"mode"`         // ok | fail | delay | flap
-	DelaySeconds float64 `json:"delaySeconds"` // sleep before answering (0–30)
+	// ok | fail | delay | flap
+	// example: fail
+	Mode string `json:"mode" example:"fail"`
+	// sleep before answering (seconds)
+	// example: 0
+	DelaySeconds float64 `json:"delaySeconds" example:"0"`
 	// Startup only: wall-clock seconds from process start before a success is allowed.
-	BootDelaySeconds float64 `json:"bootDelaySeconds,omitempty"`
-	// Flap (mode=flap):
-	//   flapSeconds — wall-clock half-period: ok for N sec, fail for N sec, repeat (default 5).
-	//   flapEvery   — if > 0, every Nth request fails instead of using the clock (handy for tests).
-	FlapSeconds float64 `json:"flapSeconds,omitempty"`
-	FlapEvery   int     `json:"flapEvery,omitempty"`
+	// example: 10
+	BootDelaySeconds float64 `json:"bootDelaySeconds,omitempty" example:"10"`
+	// Flap (mode=flap): half-period seconds (default 5).
+	// example: 5
+	FlapSeconds float64 `json:"flapSeconds,omitempty" example:"5"`
+	// Flap: every Nth request fails (0 = use time-based flapSeconds).
+	// example: 2
+	FlapEvery int `json:"flapEvery,omitempty" example:"2"`
 }
 
 // ProbeSnapshot is what /a/control/probes returns (includes runtime bits).
@@ -71,7 +77,8 @@ type ProbeUpdate struct {
 	Live              *ProbeConfig `json:"live,omitempty"`
 	Ready             *ProbeConfig `json:"ready,omitempty"`
 	Startup           *ProbeConfig `json:"startup,omitempty"`
-	ResetStartupLatch *bool        `json:"resetStartupLatch,omitempty"`
+	// example: true
+	ResetStartupLatch *bool `json:"resetStartupLatch,omitempty" example:"true"`
 }
 
 type probeState struct {
@@ -397,12 +404,12 @@ func GetProbesHandler(c *gin.Context) {
 }
 
 // @Summary Update probe control state
-// @Description Partial update of live/ready/startup. resetStartupLatch re-runs cold start without restarting the process.
+// @Description Partial update of live/ready/startup. Example: fail readiness so the pod drops from Service endpoints (no restart). resetStartupLatch re-runs cold start without restarting the process. Auth: Authorize lock with "Bearer dev".
 // @ID putProbes
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body ProbeUpdate true "probe update"
+// @Param body body ProbeUpdate true "Partial update — schema examples show fail-readiness shape"
 // @Success 200 {object} ProbeSnapshot
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string

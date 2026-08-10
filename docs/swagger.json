@@ -45,7 +45,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Partial update of live/ready/startup. resetStartupLatch re-runs cold start without restarting the process.",
+                "description": "Partial update of live/ready/startup. Example: fail readiness so the pod drops from Service endpoints (no restart). resetStartupLatch re-runs cold start without restarting the process. Auth: Authorize lock with \"Bearer dev\".",
                 "consumes": [
                     "application/json"
                 ],
@@ -56,7 +56,7 @@
                 "operationId": "putProbes",
                 "parameters": [
                     {
-                        "description": "probe update",
+                        "description": "Partial update — schema examples show fail-readiness shape",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -135,7 +135,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.",
+                "description": "Auth required (use Authorize lock: \"Bearer dev\"). North→south hits this pod; this pod calls url east-west. Response wrap includes upstream status, headers, and body. Try GET with url=https://httpbin.org/get or POST body example. Open proxy is SSRF — keep behind bearer.",
                 "consumes": [
                     "application/json"
                 ],
@@ -146,24 +146,35 @@
                 "operationId": "proxy",
                 "parameters": [
                     {
-                        "description": "proxy request",
+                        "description": "POST JSON body (preferred for full control). Example hits httpbin so you see headers/method echoed.",
                         "name": "body",
                         "in": "body",
-                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/handlers.ProxyRequest"
                         }
                     },
                     {
                         "type": "string",
-                        "description": "absolute url (GET form)",
+                        "default": "https://httpbin.org/get",
+                        "example": "https://httpbin.org/get",
+                        "description": "GET form: absolute URL to fetch",
                         "name": "url",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "HTTP method for GET form (default GET)",
+                        "default": "GET",
+                        "example": "GET",
+                        "description": "GET form: HTTP method",
                         "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "default": 15,
+                        "example": 15,
+                        "description": "GET form: outbound timeout",
+                        "name": "timeoutSeconds",
                         "in": "query"
                     }
                 ],
@@ -208,7 +219,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.",
+                "description": "Auth required (use Authorize lock: \"Bearer dev\"). North→south hits this pod; this pod calls url east-west. Response wrap includes upstream status, headers, and body. Try GET with url=https://httpbin.org/get or POST body example. Open proxy is SSRF — keep behind bearer.",
                 "consumes": [
                     "application/json"
                 ],
@@ -219,24 +230,35 @@
                 "operationId": "proxy",
                 "parameters": [
                     {
-                        "description": "proxy request",
+                        "description": "POST JSON body (preferred for full control). Example hits httpbin so you see headers/method echoed.",
                         "name": "body",
                         "in": "body",
-                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/handlers.ProxyRequest"
                         }
                     },
                     {
                         "type": "string",
-                        "description": "absolute url (GET form)",
+                        "default": "https://httpbin.org/get",
+                        "example": "https://httpbin.org/get",
+                        "description": "GET form: absolute URL to fetch",
                         "name": "url",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "HTTP method for GET form (default GET)",
+                        "default": "GET",
+                        "example": "GET",
+                        "description": "GET form: HTTP method",
                         "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "default": 15,
+                        "example": 15,
+                        "description": "GET form: outbound timeout",
+                        "name": "timeoutSeconds",
                         "in": "query"
                     }
                 ],
@@ -297,7 +319,7 @@
         },
         "/delay/{seconds}": {
             "get": {
-                "description": "Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead",
+                "description": "Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). Try 2 for a slow upstream demo; use probe delaySeconds to trip kube timeoutSeconds.",
                 "produces": [
                     "text/plain"
                 ],
@@ -306,6 +328,8 @@
                 "parameters": [
                     {
                         "type": "number",
+                        "default": 2,
+                        "example": 2,
                         "description": "seconds to sleep",
                         "name": "seconds",
                         "in": "path",
@@ -324,7 +348,7 @@
         },
         "/echo": {
             "get": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -333,6 +357,18 @@
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -344,7 +380,7 @@
                 }
             },
             "put": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -353,6 +389,18 @@
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -364,7 +412,7 @@
                 }
             },
             "post": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -373,6 +421,18 @@
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -384,7 +444,7 @@
                 }
             },
             "delete": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -393,6 +453,18 @@
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -404,7 +476,7 @@
                 }
             },
             "patch": {
-                "description": "Bounce method, path, query, headers and body back as json",
+                "description": "Bounce method, path, query, headers and body back as json. Try POST with any body and custom headers (e.g. X-Request-Id) to see what arrived.",
                 "consumes": [
                     "text/plain"
                 ],
@@ -413,6 +485,18 @@
                 ],
                 "summary": "Echo request",
                 "operationId": "echo",
+                "parameters": [
+                    {
+                        "default": "{\"hello\":\"from-swagger\"}",
+                        "example": "{\"hello\":\"from-swagger\"}",
+                        "description": "optional body to echo",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -592,7 +676,7 @@
         },
         "/status/{code}": {
             "get": {
-                "description": "Respond with whatever http status you pass (100-599). Great for ingress/retry testing",
+                "description": "Respond with whatever http status you pass (100-599). Try 418 (teapot), 503, or 502 for ingress/retry tests.",
                 "produces": [
                     "text/plain"
                 ],
@@ -601,6 +685,8 @@
                 "parameters": [
                     {
                         "type": "integer",
+                        "default": 418,
+                        "example": 418,
                         "description": "HTTP status code",
                         "name": "code",
                         "in": "path",
@@ -644,23 +730,29 @@
             "type": "object",
             "properties": {
                 "bootDelaySeconds": {
-                    "description": "Startup only: wall-clock seconds from process start before a success is allowed.",
-                    "type": "number"
+                    "description": "Startup only: wall-clock seconds from process start before a success is allowed.\nexample: 10",
+                    "type": "number",
+                    "example": 10
                 },
                 "delaySeconds": {
-                    "description": "sleep before answering (0–30)",
-                    "type": "number"
+                    "description": "sleep before answering (seconds)\nexample: 0",
+                    "type": "number",
+                    "example": 0
                 },
                 "flapEvery": {
-                    "type": "integer"
+                    "description": "Flap: every Nth request fails (0 = use time-based flapSeconds).\nexample: 2",
+                    "type": "integer",
+                    "example": 2
                 },
                 "flapSeconds": {
-                    "description": "Flap (mode=flap):\n  flapSeconds — wall-clock half-period: ok for N sec, fail for N sec, repeat (default 5).\n  flapEvery   — if \u003e 0, every Nth request fails instead of using the clock (handy for tests).",
-                    "type": "number"
+                    "description": "Flap (mode=flap): half-period seconds (default 5).\nexample: 5",
+                    "type": "number",
+                    "example": 5
                 },
                 "mode": {
-                    "description": "ok | fail | delay | flap",
-                    "type": "string"
+                    "description": "ok | fail | delay | flap\nexample: fail",
+                    "type": "string",
+                    "example": "fail"
                 }
             }
         },
@@ -707,7 +799,9 @@
                     "$ref": "#/definitions/handlers.ProbeConfig"
                 },
                 "resetStartupLatch": {
-                    "type": "boolean"
+                    "description": "example: true",
+                    "type": "boolean",
+                    "example": true
                 },
                 "startup": {
                     "$ref": "#/definitions/handlers.ProbeConfig"
@@ -721,46 +815,56 @@
             ],
             "properties": {
                 "body": {
-                    "description": "Optional body (string; use for JSON text, form, etc.)",
-                    "type": "string"
+                    "description": "Optional body (string; use for JSON text, form, etc.)\nexample: {\"hello\":\"cluster\"}",
+                    "type": "string",
+                    "example": "{\"hello\":\"cluster\"}"
                 },
                 "forwardIncomingHeaders": {
-                    "description": "When true (default), copy inbound request headers onto the outbound call\n(minus hop-by-hop). Tracing headers like X-Request-Id ride along.",
-                    "type": "boolean"
+                    "description": "When true (default), copy inbound request headers onto the outbound call\n(minus hop-by-hop). Tracing headers like X-Request-Id ride along.\nexample: true",
+                    "type": "boolean",
+                    "example": true
                 },
                 "forwardSensitiveHeaders": {
-                    "description": "When true, also forward Authorization / Cookie from the inbound request.\nDefault false so your bearer token for *this* api is not sent east-west by accident.",
-                    "type": "boolean"
+                    "description": "When true, also forward Authorization / Cookie from the inbound request.\nDefault false so your bearer token for *this* api is not sent east-west by accident.\nexample: false",
+                    "type": "boolean",
+                    "example": false
                 },
                 "headers": {
-                    "description": "Extra headers to set/override on the outbound request",
+                    "description": "Extra headers to set/override on the outbound request\nexample: {\"X-Demo\":\"from-swagger\"}",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    },
+                    "example": {
+                        "X-Demo": "from-swagger"
                     }
                 },
                 "method": {
-                    "description": "HTTP method (default GET)",
-                    "type": "string"
+                    "description": "HTTP method (default GET)\nexample: GET",
+                    "type": "string",
+                    "example": "GET"
                 },
                 "raw": {
-                    "description": "When true, return the upstream body as the raw HTTP response (status + headers from upstream).\nDefault false → JSON wrap with request/response/meta (includes upstream headers + body).",
-                    "type": "boolean"
+                    "description": "When true, return the upstream body as the raw HTTP response (status + headers from upstream).\nDefault false → JSON wrap with request/response/meta (includes upstream headers + body).\nexample: false",
+                    "type": "boolean",
+                    "example": false
                 },
                 "timeoutSeconds": {
-                    "description": "Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)",
-                    "type": "number"
+                    "description": "Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)\nexample: 15",
+                    "type": "number",
+                    "example": 15
                 },
                 "url": {
-                    "description": "Absolute URL to call, e.g. http://other-api:8080/debug",
-                    "type": "string"
+                    "description": "Absolute URL to call (demo: httpbin echoes method/headers back as JSON)\nexample: https://httpbin.org/get",
+                    "type": "string",
+                    "example": "https://httpbin.org/get"
                 }
             }
         }
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Click Authorize (lock icon). Value MUST be: Bearer \u003ctoken\u003e  including the word Bearer and a space. Example for local podman: Bearer dev. Token only (without Bearer) will 401.",
+            "description": "Use the top-right Authorize lock only (not a per-operation Authorization field). Value MUST be exactly: Bearer \u003ctoken\u003e  e.g. local: Bearer dev",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
