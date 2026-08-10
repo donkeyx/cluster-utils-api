@@ -1,18 +1,22 @@
 package routes
 
 import (
+	"cu-api/docs"
 	"cu-api/handlers"
 	"cu-api/middleware"
 	"net/http"
+	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	_ "cu-api/docs"
-
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+// swaggerInfoMu guards docs.SwaggerInfo Host/Schemes when serving the UI for different origins.
+var swaggerInfoMu sync.Mutex
 
 func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	r.Use(handlers.MetricsMiddleware())
@@ -22,7 +26,11 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 		c.Redirect(http.StatusFound, "/api-docs/index.html")
 	})
 
-	r.GET("/api-docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Swagger UI: persist Authorize token in the browser; host/scheme follow where you opened
+	// the page (so port-forward / docker / cluster DNS all work). Optional overrides:
+	//   /api-docs/index.html?host=my-svc:8080&scheme=http
+	r.GET("/api-docs/*any", swaggerHandler())
+
 	r.GET("/help", handlers.HelpHandler)
 	r.GET("/version", handlers.VersionHandler)
 	r.GET("/metrics", handlers.PrometheusMetricsHandler())
@@ -54,4 +62,38 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	authGroup.GET("/env", handlers.EnvHandler)
 	authGroup.GET("/control/probes", handlers.GetProbesHandler)
 	authGroup.PUT("/control/probes", handlers.PutProbesHandler)
+}
+
+func swaggerHandler() gin.HandlerFunc {
+	// Empty host in the generated spec would also work; we set Host from the request
+	// so the Swagger top bar shows a real target and Try it out hits the right place.
+	handler := ginSwagger.WrapHandler(
+		swaggerFiles.Handler,
+		ginSwagger.PersistAuthorization(true),
+		ginSwagger.DefaultModelsExpandDepth(-1),
+	)
+
+	return func(c *gin.Context) {
+		host := strings.TrimSpace(c.Query("host"))
+		if host == "" {
+			host = c.Request.Host
+		}
+
+		scheme := strings.ToLower(strings.TrimSpace(c.Query("scheme")))
+		if scheme != "http" && scheme != "https" {
+			if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			} else {
+				scheme = "http"
+			}
+		}
+
+		// Serialize updates to the global SwaggerInfo used when doc.json is generated.
+		swaggerInfoMu.Lock()
+		docs.SwaggerInfo.Host = host
+		docs.SwaggerInfo.Schemes = []string{scheme}
+		docs.SwaggerInfo.BasePath = "/"
+		handler(c)
+		swaggerInfoMu.Unlock()
+	}
 }

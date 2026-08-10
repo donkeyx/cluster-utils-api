@@ -586,7 +586,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Type \"Bearer\" followed by a space and the token from the app logs on startup (or AUTH_TOKEN env).",
+            "description": "Paste: Bearer \u003ctoken\u003e  (token from container logs, or AUTH_TOKEN env). Example: Bearer dev",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -597,11 +597,11 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "2.0",
-	Host:             "localhost:8080",
+	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Cluster Util API",
-	Description:      "Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster",
+	Description:      "Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster. Swagger \"Try it out\" uses the host you opened the UI on (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize with Bearer token from logs or AUTH_TOKEN.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

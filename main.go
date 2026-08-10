@@ -1,12 +1,11 @@
 // @title Cluster Util API
 // @version 2.0
-// @description Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster
-// @host localhost:8080
+// @description Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster. Swagger "Try it out" uses the host you opened the UI on (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize with Bearer token from logs or AUTH_TOKEN.
 // @BasePath /
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Type "Bearer" followed by a space and the token from the app logs on startup (or AUTH_TOKEN env).
+// @description Paste: Bearer <token>  (token from container logs, or AUTH_TOKEN env). Example: Bearer dev
 
 package main
 

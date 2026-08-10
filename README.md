@@ -75,9 +75,27 @@ curl -sS -H "Authorization: Bearer $TOKEN" localhost:8080/a/control/probes | jq
 
 ### Swagger UI
 
-1. Open http://localhost:8080/ (or `/api-docs/index.html`)
-2. Click **Authorize**
-3. Enter `Bearer <token>` (word `Bearer`, space, then the token) — or whatever the UI label asks for; the header name is `Authorization`
+1. Open the UI **on the same host/port you want to call** (that way Try it out just works):
+   - local: http://localhost:8080/ or `/api-docs/index.html`
+   - port-forward: http://localhost:8080/api-docs/index.html
+2. Click **Authorize** (lock icon)
+3. Value: `Bearer <token>` — word **Bearer**, a space, then the token  
+   Example: `Bearer dev`  
+   Header name is `Authorization`. The UI remembers it in this browser (`PersistAuthorization`).
+4. **Try it out** on any route — protected ones under `/a/` need Authorize first.
+
+**Host / port for Try it out**
+
+Swagger uses the host you opened the page on (so docker `:8080`, port-forward, or in-cluster ingress all line up without editing the spec).
+
+If you ever need to point Try it out somewhere else (UI on A, API on B):
+
+```text
+http://localhost:8080/api-docs/index.html?host=cluster-utils-api-svc:8080&scheme=http
+http://localhost:8080/api-docs/index.html?host=my-alb.example.com&scheme=https
+```
+
+`host` = `hostname` or `hostname:port` (no `http://`). `scheme` = `http` or `https`.
 
 Without a token, `/a/*` returns **401**.
 

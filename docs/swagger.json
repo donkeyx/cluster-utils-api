@@ -1,12 +1,11 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster",
+        "description": "Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster. Swagger \"Try it out\" uses the host you opened the UI on (or override with ?host=host:port\u0026scheme=http on /api-docs/index.html). Authorize with Bearer token from logs or AUTH_TOKEN.",
         "title": "Cluster Util API",
         "contact": {},
         "version": "2.0"
     },
-    "host": "localhost:8080",
     "basePath": "/",
     "paths": {
         "/a/control/probes": {
@@ -580,7 +579,7 @@
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Type \"Bearer\" followed by a space and the token from the app logs on startup (or AUTH_TOKEN env).",
+            "description": "Paste: Bearer \u003ctoken\u003e  (token from container logs, or AUTH_TOKEN env). Example: Bearer dev",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
