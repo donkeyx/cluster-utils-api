@@ -15,6 +15,10 @@ RUN make build
 # no longer using musl dns moved to debian
 FROM debian:stable-slim
 WORKDIR /app
+# ca-certificates required for HTTPS (proxy, OTEL OTLP, etc.)
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/bin .
 RUN ln -s /app/cu-api /usr/local/bin/cu-api; ln -s /app/cu-api /usr/local/bin/node; ln -s /app/cu-api /usr/local/bin/npm;
 EXPOSE 8080
