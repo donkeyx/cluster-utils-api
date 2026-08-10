@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"cu-api/handlers"
 	"cu-api/routes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -16,10 +19,31 @@ import (
 func setupTestRouter(token string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	handlers.SetBuildInfo("test-ver", "abc123")
+	handlers.InitProbesFromEnv()
+	// reset to known defaults for tests (env may not be set)
+	resetProbesForTest()
 	r := gin.New()
 	logger := setupLogger()
 	routes.SetupRouter(logger, token, r)
 	return r
+}
+
+func resetProbesForTest() {
+	ok := true
+	body, _ := json.Marshal(handlers.ProbeUpdate{
+		Live:              &handlers.ProbeConfig{Mode: "ok", DelaySeconds: 0},
+		Ready:             &handlers.ProbeConfig{Mode: "ok", DelaySeconds: 0},
+		Startup:           &handlers.ProbeConfig{Mode: "ok", DelaySeconds: 0, BootDelaySeconds: 0},
+		ResetStartupLatch: &ok,
+	})
+	// use handler internals via HTTP would need router; call Put via package by spinning mini router
+	// simpler: hit control after router exists — for setup, use PUT through a throwaway engine
+	r := gin.New()
+	r.PUT("/p", handlers.PutProbesHandler)
+	req := httptest.NewRequest(http.MethodPut, "/p", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
 }
 
 func TestHealthEndpoint(t *testing.T) {
@@ -29,7 +53,16 @@ func TestHealthEndpoint(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "OK", rr.Body.String())
+	assert.Equal(t, "ok", rr.Body.String())
+}
+
+func TestLivezAlias(t *testing.T) {
+	r := setupTestRouter("tok")
+	req := httptest.NewRequest(http.MethodGet, "/livez", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "ok", rr.Body.String())
 }
 
 func TestHealthUnhealthyQuery(t *testing.T) {
@@ -39,7 +72,7 @@ func TestHealthUnhealthyQuery(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
-	assert.Equal(t, "Unhealthy", rr.Body.String())
+	assert.Equal(t, "unhealthy", rr.Body.String())
 }
 
 func TestReadyNotReadyQuery(t *testing.T) {
@@ -49,7 +82,98 @@ func TestReadyNotReadyQuery(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
-	assert.Equal(t, "Not Ready", rr.Body.String())
+	assert.Equal(t, "not ready", rr.Body.String())
+}
+
+func TestReadyFailViaControl(t *testing.T) {
+	token := "tok"
+	r := setupTestRouter(token)
+
+	body := `{"ready":{"mode":"fail","delaySeconds":0}}`
+	req := httptest.NewRequest(http.MethodPut, "/a/control/probes", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	req2 := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusServiceUnavailable, rr2.Code)
+	assert.Equal(t, "not ready", rr2.Body.String())
+}
+
+func TestStartupLatchAndBootDelay(t *testing.T) {
+	token := "tok"
+	r := setupTestRouter(token)
+
+	// set boot delay into the future
+	body := `{"startup":{"mode":"ok","delaySeconds":0,"bootDelaySeconds":2},"resetStartupLatch":true}`
+	req := httptest.NewRequest(http.MethodPut, "/a/control/probes", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// still starting
+	req2 := httptest.NewRequest(http.MethodGet, "/startupz", nil)
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusServiceUnavailable, rr2.Code)
+	assert.Equal(t, "starting", rr2.Body.String())
+
+	time.Sleep(2100 * time.Millisecond)
+
+	// first success latches
+	req3 := httptest.NewRequest(http.MethodGet, "/startup", nil)
+	rr3 := httptest.NewRecorder()
+	r.ServeHTTP(rr3, req3)
+	assert.Equal(t, http.StatusOK, rr3.Code)
+	assert.Equal(t, "started", rr3.Body.String())
+
+	// sticky after latch even if we can't easily re-apply boot without reset
+	req4 := httptest.NewRequest(http.MethodGet, "/startupz", nil)
+	rr4 := httptest.NewRecorder()
+	r.ServeHTTP(rr4, req4)
+	assert.Equal(t, http.StatusOK, rr4.Code)
+}
+
+func TestStartupFailNeverLatches(t *testing.T) {
+	token := "tok"
+	r := setupTestRouter(token)
+
+	body := `{"startup":{"mode":"fail","delaySeconds":0,"bootDelaySeconds":0},"resetStartupLatch":true}`
+	req := httptest.NewRequest(http.MethodPut, "/a/control/probes", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	req2 := httptest.NewRequest(http.MethodGet, "/startupz", nil)
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusServiceUnavailable, rr2.Code)
+	assert.Equal(t, "startup failed", rr2.Body.String())
+}
+
+func TestGetProbesAuth(t *testing.T) {
+	token := "secret"
+	r := setupTestRouter(token)
+
+	req := httptest.NewRequest(http.MethodGet, "/a/control/probes", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+
+	req2 := httptest.NewRequest(http.MethodGet, "/a/control/probes", nil)
+	req2.Header.Set("Authorization", "Bearer "+token)
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusOK, rr2.Code)
+	assert.Contains(t, rr2.Body.String(), "startupLatched")
 }
 
 func TestVersion(t *testing.T) {
@@ -110,13 +234,11 @@ func TestEnvAuth(t *testing.T) {
 	token := "secret-token"
 	r := setupTestRouter(token)
 
-	// no auth
 	req := httptest.NewRequest(http.MethodGet, "/a/env", nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 
-	// with auth
 	req2 := httptest.NewRequest(http.MethodGet, "/a/env", nil)
 	req2.Header.Set("Authorization", "Bearer "+token)
 	rr2 := httptest.NewRecorder()
@@ -135,7 +257,6 @@ func TestPing(t *testing.T) {
 
 func TestMetrics(t *testing.T) {
 	r := setupTestRouter("tok")
-	// hit something first so counter has labels
 	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/ping", nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)

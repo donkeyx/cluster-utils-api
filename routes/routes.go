@@ -27,10 +27,19 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	r.GET("/version", handlers.VersionHandler)
 	r.GET("/metrics", handlers.PrometheusMetricsHandler())
 
-	r.GET("/health", handlers.HealthHandler)
+	// Kube-style probes (plus older aliases)
+	// live  = liveness  → restart on fail
+	// ready = readiness → leave Service endpoints on fail
+	// startup = cold start latch → kube only until first success
+	r.GET("/livez", handlers.LiveHandler)
 	r.GET("/healthz", handlers.HealthzHandler)
-	r.GET("/ready", handlers.ReadyHandler)
+	r.GET("/health", handlers.HealthHandler)
+
 	r.GET("/readyz", handlers.ReadyzHandler)
+	r.GET("/ready", handlers.ReadyHandler)
+
+	r.GET("/startupz", handlers.StartupHandler)
+	r.GET("/startup", handlers.StartupHandler)
 
 	r.GET("/headers", handlers.HeadersHandler)
 	r.GET("/debug", handlers.DebugHandler)
@@ -43,4 +52,6 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	authGroup := r.Group("/a")
 	authGroup.Use(middleware.AuthMiddleware(logger, st))
 	authGroup.GET("/env", handlers.EnvHandler)
+	authGroup.GET("/control/probes", handlers.GetProbesHandler)
+	authGroup.PUT("/control/probes", handlers.PutProbesHandler)
 }

@@ -77,22 +77,22 @@ func PrometheusMetricsHandler() gin.HandlerFunc {
 // @Router /help [get]
 func HelpHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]string{
-		"/":              "redirect to swagger docs",
-		"/api-docs/*":    "swagger ui",
-		"/help":          "GET this list",
-		"/version":       "GET build version / git hash",
-		"/health":        "GET liveness (env HEALTHY, query ok/healthy)",
-		"/healthz":       "GET same as /health",
-		"/ready":         "GET readiness (env READY, query ok/ready)",
-		"/readyz":        "GET same as /ready",
-		"/ping":          "GET PONG",
-		"/headers":       "GET request headers",
-		"/debug":         "GET hostname / ip / headers / uri",
-		"/metrics":       "GET prometheus metrics",
-		"/status/:code":  "GET respond with that http status",
-		"/delay/:seconds": "GET sleep then 200 (max 30s)",
-		"/echo":          "GET/POST echo method, headers, query, body",
-		"/a/env":         "GET env vars (bearer auth)",
+		"/":                    "redirect to swagger docs",
+		"/api-docs/*":          "swagger ui",
+		"/help":                "GET this list",
+		"/version":             "GET build version / git hash",
+		"/livez|/healthz|/health": "GET liveness (LIVE_MODE / LIVE_DELAY)",
+		"/readyz|/ready":       "GET readiness (READY_MODE / READY_DELAY)",
+		"/startupz|/startup":   "GET startup latch (STARTUP_* / boot delay)",
+		"/a/control/probes":    "GET/PUT probe state (bearer auth)",
+		"/ping":                "GET PONG",
+		"/headers":             "GET request headers",
+		"/debug":               "GET hostname / ip / headers / uri",
+		"/metrics":             "GET prometheus metrics",
+		"/status/:code":        "GET respond with that http status",
+		"/delay/:seconds":      "GET sleep then 200 (max 30s)",
+		"/echo":                "GET/POST echo method, headers, query, body",
+		"/a/env":               "GET env vars (bearer auth)",
 	})
 }
 
@@ -111,68 +111,8 @@ func VersionHandler(c *gin.Context) {
 	})
 }
 
-// @Summary Get healthz
-// @Description Liveness style check. Fail with env HEALTHY=false or ?ok=0
-// @ID healthz
-// @Produce plain
-// @Param ok query string false "set 0/false to force unhealthy"
-// @Param healthy query string false "same as ok"
-// @Success 200 {string} string "OK"
-// @Failure 503 {string} string "Unhealthy"
-// @Router /healthz [get]
-func HealthzHandler(c *gin.Context) {
-	HealthHandler(c)
-}
-
-// @Summary Get health
-// @Description Liveness style check. Fail with env HEALTHY=false or ?ok=0
-// @ID health
-// @Produce plain
-// @Param ok query string false "set 0/false to force unhealthy"
-// @Param healthy query string false "same as ok"
-// @Success 200 {string} string "OK"
-// @Failure 503 {string} string "Unhealthy"
-// @Router /health [get]
-func HealthHandler(c *gin.Context) {
-	if !probeOK(c, "HEALTHY", "healthy") {
-		c.String(http.StatusServiceUnavailable, "Unhealthy")
-		return
-	}
-	c.String(http.StatusOK, "OK")
-}
-
-// @Summary Get readyz
-// @Description Readiness check. Fail with env READY=false or ?ok=0
-// @ID readyz
-// @Produce plain
-// @Param ok query string false "set 0/false to force not ready"
-// @Param ready query string false "same as ok"
-// @Success 200 {string} string "Ready"
-// @Failure 503 {string} string "Not Ready"
-// @Router /readyz [get]
-func ReadyzHandler(c *gin.Context) {
-	ReadyHandler(c)
-}
-
-// @Summary Get ready
-// @Description Readiness check. Fail with env READY=false or ?ok=0 so you can watch k8s/ECS kick the pod
-// @ID ready
-// @Produce plain
-// @Param ok query string false "set 0/false to force not ready"
-// @Param ready query string false "same as ok"
-// @Success 200 {string} string "Ready"
-// @Failure 503 {string} string "Not Ready"
-// @Router /ready [get]
-func ReadyHandler(c *gin.Context) {
-	if !probeOK(c, "READY", "ready") {
-		c.String(http.StatusServiceUnavailable, "Not Ready")
-		return
-	}
-	c.String(http.StatusOK, "Ready")
-}
-
 // @Summary Get ping
-// @Description Simple alive check
+// @Description Simple alive check (not a kube probe — use /livez for that)
 // @ID ping
 // @Produce plain
 // @Success 200 {string} string "PONG"
@@ -243,7 +183,7 @@ func StatusHandler(c *gin.Context) {
 }
 
 // @Summary Delay then OK
-// @Description Sleep N seconds (max 30) then return 200. Useful for timeout / slow upstream tests
+// @Description Sleep N seconds (max 30) then return 200. For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead
 // @ID delay
 // @Produce plain
 // @Param seconds path number true "seconds to sleep (max 30)"
@@ -256,10 +196,7 @@ func DelayHandler(c *gin.Context) {
 		c.String(http.StatusBadRequest, "seconds must be a number >= 0")
 		return
 	}
-	const maxDelay = 30.0
-	if secs > maxDelay {
-		secs = maxDelay
-	}
+	secs = clampDelay(secs)
 	time.Sleep(time.Duration(secs * float64(time.Second)))
 	c.String(http.StatusOK, "delayed=%.3fs", secs)
 }
@@ -300,21 +237,6 @@ func GetEnvironmentVariables() map[string]string {
 		}
 	}
 	return envVariables
-}
-
-// probeOK: query overrides env. Default true (healthy/ready).
-// query keys: "ok" or the specific key (healthy/ready). env: HEALTHY / READY etc.
-func probeOK(c *gin.Context, envKey, queryKey string) bool {
-	if q := c.Query("ok"); q != "" {
-		return isTruthy(q)
-	}
-	if q := c.Query(queryKey); q != "" {
-		return isTruthy(q)
-	}
-	if v, ok := os.LookupEnv(envKey); ok {
-		return isTruthy(v)
-	}
-	return true
 }
 
 func isTruthy(s string) bool {

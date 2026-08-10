@@ -38,6 +38,7 @@ func main() {
 	defer logger.Sync()
 
 	handlers.SetBuildInfo(Version, GitHash)
+	handlers.InitProbesFromEnv()
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -61,6 +62,8 @@ func main() {
 	)
 	logger.Info("Security Token", zap.String("token", securityToken))
 	logger.Info("Curl Command", zap.String("command", getCurlCommand(port, securityToken)))
+	logger.Info("Probe control", zap.String("command",
+		fmt.Sprintf("curl -sS -H 'Authorization: Bearer %s' http://localhost:%d/a/control/probes | jq", securityToken, port)))
 
 	r.Run(fmt.Sprintf(":%d", port))
 }
