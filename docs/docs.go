@@ -145,6 +145,170 @@ const docTemplate = `{
                 }
             }
         },
+        "/a/proxy": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy / hop to another service (auth)",
+                "operationId": "proxy",
+                "parameters": [
+                    {
+                        "description": "proxy request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProxyRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "absolute url (GET form)",
+                        "name": "url",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "HTTP method for GET form (default GET)",
+                        "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "Bearer",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy / hop to another service (auth)",
+                "operationId": "proxy",
+                "parameters": [
+                    {
+                        "description": "proxy request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProxyRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "absolute url (GET form)",
+                        "name": "url",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "HTTP method for GET form (default GET)",
+                        "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "Bearer",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/debug": {
             "get": {
                 "description": "Hostname, client ip, headers, uri — good for routing tests",
@@ -403,126 +567,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/proxy": {
-            "get": {
-                "description": "North→south hits this pod; this pod calls another URL east-west. Forwards headers by default so you can test mesh/ingress propagation. Also supports GET /proxy?url=",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Proxy / hop to another service",
-                "operationId": "proxy",
-                "parameters": [
-                    {
-                        "description": "proxy request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.ProxyRequest"
-                        }
-                    },
-                    {
-                        "type": "string",
-                        "description": "absolute url (GET form)",
-                        "name": "url",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "HTTP method for GET form (default GET)",
-                        "name": "method",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "502": {
-                        "description": "Bad Gateway",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "North→south hits this pod; this pod calls another URL east-west. Forwards headers by default so you can test mesh/ingress propagation. Also supports GET /proxy?url=",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Proxy / hop to another service",
-                "operationId": "proxy",
-                "parameters": [
-                    {
-                        "description": "proxy request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/handlers.ProxyRequest"
-                        }
-                    },
-                    {
-                        "type": "string",
-                        "description": "absolute url (GET form)",
-                        "name": "url",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "HTTP method for GET form (default GET)",
-                        "name": "method",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "502": {
-                        "description": "Bad Gateway",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/readyz": {
             "get": {
                 "description": "Kube readiness. 200 = take traffic; 503 = leave Service endpoints. Modes: ok|fail|delay|flap. Alias: /ready",
@@ -714,7 +758,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "forwardIncomingHeaders": {
-                    "description": "When true (default), copy inbound request headers onto the outbound call\n(minus hop-by-hop). Good for tracing / auth / x-request-id passthrough.",
+                    "description": "When true (default), copy inbound request headers onto the outbound call\n(minus hop-by-hop). Tracing headers like X-Request-Id ride along.",
+                    "type": "boolean"
+                },
+                "forwardSensitiveHeaders": {
+                    "description": "When true, also forward Authorization / Cookie from the inbound request.\nDefault false so your bearer token for *this* api is not sent east-west by accident.",
                     "type": "boolean"
                 },
                 "headers": {
@@ -729,11 +777,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "raw": {
-                    "description": "When true, return the upstream body as raw response (status + headers from upstream).\nDefault false → JSON wrap with timing + what we sent/received (better for debugging).",
+                    "description": "When true, return the upstream body as the raw HTTP response (status + headers from upstream).\nDefault false → JSON wrap with request/response/meta (includes upstream headers + body).",
                     "type": "boolean"
                 },
                 "timeoutSeconds": {
-                    "description": "Timeout for the outbound call (default 10, max same as MAX_DELAY_SECONDS / 300)",
+                    "description": "Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)",
                     "type": "number"
                 },
                 "url": {

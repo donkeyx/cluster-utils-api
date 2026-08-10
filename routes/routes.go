@@ -66,7 +66,7 @@ func SetupRouter(logger *zap.Logger, st string, r *gin.Engine) {
 	// open /proxy would be SSRF (scan cluster, hit metadata, etc.)
 	authGroup.GET("/proxy", handlers.ProxyHandler)
 	authGroup.POST("/proxy", handlers.ProxyHandler)
-
+}
 
 func swaggerHandler() gin.HandlerFunc {
 	// Empty host in the generated spec would also work; we set Host from the request
