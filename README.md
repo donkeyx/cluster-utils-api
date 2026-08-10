@@ -93,29 +93,33 @@ curl -sS -H "Authorization: Bearer $TOKEN" localhost:8080/a/control/probes | jq
 
 ### Swagger UI
 
-1. Open the UI **on the same host/port you want to call** (that way Try it out just works):
-   - local: http://localhost:8080/ or `/api-docs/index.html`
-   - port-forward: http://localhost:8080/api-docs/index.html
-2. Click **Authorize** (lock icon)
-3. Value: `Bearer <token>` — word **Bearer**, a space, then the token  
-   Example: `Bearer dev`  
-   Header name is `Authorization`. The UI remembers it in this browser (`PersistAuthorization`).
-4. **Try it out** on any route — protected ones under `/a/` need Authorize first.
+Yes — for `/a/*` you **Authorize before Execute** (same value as curl).
 
-**Host / port for Try it out**
+**Local podman (`AUTH_TOKEN=dev` on :18080):**
 
-Swagger uses the host you opened the page on (so docker `:8080`, port-forward, or in-cluster ingress all line up without editing the spec).
+1. Open http://127.0.0.1:18080/ (same host/port as the API)  
+2. Click the green **Authorize** lock (top right) — not a random field on the op  
+3. Paste exactly:
 
-If you ever need to point Try it out somewhere else (UI on A, API on B):
+   ```text
+   Bearer dev
+   ```
 
-```text
-http://localhost:8080/api-docs/index.html?host=cluster-utils-api-svc:8080&scheme=http
-http://localhost:8080/api-docs/index.html?host=my-alb.example.com&scheme=https
-```
+   | Value | Result |
+   |-------|--------|
+   | `Bearer dev` | **200** |
+   | `dev` only | **401** |
+   | `bearer dev` (lowercase) | **401** (we require exact `Bearer `) |
 
-`host` = `hostname` or `hostname:port` (no `http://`). `scheme` = `http` or `https`.
+4. **Authorize** → **Close**  
+5. Operation → **Try it out** → **Execute**
 
-Without a token, `/a/*` returns **401**.
+If still 401: hard-refresh swagger (stale token), confirm  
+`curl -sS -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer dev' http://127.0.0.1:18080/a/env`  
+is `200`, or check `podman logs cu-api | grep '"token"'`.
+
+**Host / port:** UI uses the host you opened. Override with  
+`?host=127.0.0.1:18080&scheme=http` if needed.
 
 ---
 
