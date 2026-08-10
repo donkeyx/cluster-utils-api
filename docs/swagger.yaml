@@ -6,22 +6,18 @@ info:
   title: Cluster Util API
   version: "2.0"
 paths:
-  /debug:
-    get:
-      description: Get lots of info from running container headers/ips AAA
-      operationId: debug
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: string
-      summary: Debug
-  /env:
+  /a/env:
     get:
       description: Get the env variables available to the api. This is behind auth
+        under /a/
       operationId: env
+      parameters:
+      - default: Bearer
+        description: Bearer token from app logs
+        in: header
+        name: Authorization
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -40,6 +36,18 @@ paths:
       security:
       - BearerAuth: []
       summary: Get environment variables
+  /debug:
+    get:
+      description: Get lots of info from running container headers/ips
+      operationId: debug
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Debug
   /headers:
     get:
       description: Get the headers recieved by the api
@@ -112,4 +120,11 @@ paths:
           schema:
             type: string
       summary: Get readyz
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and the token from the app logs
+      on startup.
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

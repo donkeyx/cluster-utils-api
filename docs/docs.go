@@ -15,37 +15,29 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/debug": {
-            "get": {
-                "description": "Get lots of info from running container headers/ips",
-                "produces": [
-                    "application/json"
-                ],
-                "summary": "Debug",
-                "operationId": "debug",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/env": {
+        "/a/env": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get the env variables available to the api. This is behind auth",
+                "description": "Get the env variables available to the api. This is behind auth under /a/",
                 "produces": [
                     "application/json"
                 ],
                 "summary": "Get environment variables",
                 "operationId": "env",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "Bearer",
+                        "description": "Bearer token from app logs",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -63,6 +55,24 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/debug": {
+            "get": {
+                "description": "Get lots of info from running container headers/ips",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Debug",
+                "operationId": "debug",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -175,6 +185,14 @@ const docTemplate = `{
                     }
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Type \"Bearer\" followed by a space and the token from the app logs on startup.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

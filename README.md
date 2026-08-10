@@ -2,32 +2,55 @@
 
 ## description
 
-Simple docker image which will stand up a flexibile api that handles most entrypoints and has all the health variations. This allows me to deploy to a cluster, ecs/eks with any entrypoint or params and it will still run and respont to health checks. Great for testing cluster setup and has endpoints for debugging routing and headers.
+Simple docker image which will stand up a flexibile api that handles most entrypoints and has all the health variations. This allows me to deploy to a cluster, ecs/eks with any entrypoint or params and it will still run and respond to health checks. Great for testing cluster setup and has endpoints for debugging routing and headers.
 
-Default route is swagger doc for the endpoints
+Default route redirects into the **swagger** docs so you can poke the endpoints from the browser.
 
-| dockerhub: https://hub.docker.com/repository/docker/donkeyx/cluster-utils-api
+| dockerhub: https://hub.docker.com/r/donkeyx/cluster-utils-api
+
+| ghcr: `ghcr.io/donkeyx/cluster-utils-api`
 
 | github: https://github.com/donkeyx/cluster-utils-api
 
 ## Usage
 
-The the endpoints are generally readable, but /a/ will be authenticated and you can find the bearer token in the logs. This will rotate on every startup to keep the sensitive endpoints a bit more secure.
+Most endpoints are open. Anything under `/a/` is authenticated — grab the bearer token from the container logs on startup (it rotates every restart). The app also logs a ready made curl for `/a/env`.
+
+Swagger UI:
+
+- http://localhost:8080/  (redirects)
+- http://localhost:8080/api-docs/index.html
+
+Port defaults to `8080`, override with `PORT` if you need to.
 
 ### Start container:
 
 ```bash
 docker run -d -p 8080:8080 --name test-api donkeyx/cluster-utils-api:latest
 ```
-### use the swagger docs by opening this in your browser
-http://localhost:8080
-
 
 ```bash
-# view basic info
-curl -sS localhost:8080/help|jq
+# quick route map
+curl -sS localhost:8080/help | jq
+
+# health / ping
+curl -sS localhost:8080/healthz
+curl -sS localhost:8080/ping
+
+# debug routing / headers
+curl -sS localhost:8080/headers | jq
+curl -sS localhost:8080/debug | jq
+
+# env dump (needs the token from logs)
+docker logs test-api 2>&1 | head -30
+curl -sS -H "Authorization: Bearer <token>" localhost:8080/a/env | jq
+```
+
+`/help` looks roughly like:
+
+```json
 {
-  "/": "This can be used to redirect to the swagger docs",
+  "/": "This can be used to redirect to the swagger docs for more details",
   "/a/env": "GET",
   "/debug": "GET",
   "/headers": "GET",
@@ -39,52 +62,43 @@ curl -sS localhost:8080/help|jq
 }
 ```
 
+### Main endpoints
+
+| path | notes |
+|------|--------|
+| `GET /` | redirect to swagger |
+| `GET /api-docs/*` | swagger ui |
+| `GET /help` | json list of routes |
+| `GET /health` `/healthz` | returns `OK` |
+| `GET /ready` `/readyz` | returns `Ready` |
+| `GET /ping` | `PONG` |
+| `GET /headers` | request headers |
+| `GET /debug` | hostname / ip / headers / uri |
+| `GET /a/env` | env vars, **bearer auth** |
+
 ### run image in k8 cluster:
 
-You can run the pod in your cluster with the commands below. This will start a deployment and
-service called ```cluster-utils-api``` but limited to cluster ip. If you want to expose with
-type loadbalancer you can do it yourself, I don't want you to get a bill from this.
+You can run the pod in your cluster with the commands below. This will start a deployment and service but limited to cluster ip. If you want to expose with type loadbalancer you can do it yourself, I don't want you to get a bill from this.
 
-apply the manifest to create the pod and service
 ```bash
-# apply pod config with default 30min timeout
+# apply pod config
 kubectl -n default \
     apply -f https://raw.githubusercontent.com/donkeyx/cluster-utils-api/master/k8s-cluster-util-apis.yml
 ```
 
-list the created pod and service.
 ```bash
-# list the pod and service which shows
-$ kubectl get pods,svc -n default
-NAME                                     READY   STATUS    RESTARTS   AGE
-pod/cluster-utils-api-6c5999df88-wssg6   1/1     Running   0          14m
-
-NAME                        TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
-service/cluster-utils-api   ClusterIP   10.114.3.0   <none>        80/TCP    14m
-service/kubernetes          ClusterIP   10.114.0.1   <none>        443/TCP   99d
-...
+kubectl get pods,svc -n default
+# service is cluster-utils-api-svc on 8080
 ```
 
 ### Now you can use port forwarding to curl your apis inside the cluster
 
 ```bash
-# in one windows forward the ports to the service
-$ kubectl -n default port-forward svc/cluster-utils-api 8080:80
+# in one window forward the ports to the service
+kubectl -n default port-forward svc/cluster-utils-api-svc 8080:8080
 
 # then curl the service -> pod
-curl -sS localhost:8080/debug|jq
-{
-  "Headers": {
-    "Accept": [
-      "*/*"
-    ],
-    "User-Agent": [
-      "curl/7.68.0"
-    ]
-  },
-  "Hostname": "DESKTOP-V9N2U1D",
-  "RequestURI": "/debug",
-  "SourceIP": "127.0.0.1",
-  "UserAgent": "curl/7.68.0"
-}
+curl -sS localhost:8080/debug | jq
 ```
+
+Probes in the manifest hit `/healthz` on container port 8080.
