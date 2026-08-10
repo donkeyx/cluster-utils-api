@@ -680,13 +680,13 @@ kubectl get pods,svc -n default
 # service: cluster-utils-api-svc:8080
 ```
 
-Sample manifest probes:
+Sample manifest probes (near kube defaults; timeout 1s so delay demos trip easily):
 
-- **startupProbe** → `/startupz` (timeout 1s, period 2s)
-- **livenessProbe** → `/livez` (timeout 1s)
-- **readinessProbe** → `/readyz` (timeout 1s)
+- **startupProbe** → `/startupz` (period 2s × failureThreshold 30 ≈ 60s cold start)
+- **livenessProbe** → `/livez` (period 10s, failureThreshold 3)
+- **readinessProbe** → `/readyz` (period 10s, failureThreshold 3)
 
-Uncomment the env examples in the yaml to break things on purpose, or flip live via `/a/control/probes` after you grab the token from pod logs (or set `AUTH_TOKEN`).
+Image is pinned to a version tag so default pull is **IfNotPresent** (bare `:latest` still forces Always in kube). Uncomment env examples to break probes, or flip via `/a/control/probes`.
 
 ```bash
 kubectl -n default port-forward svc/cluster-utils-api-svc 8080:8080

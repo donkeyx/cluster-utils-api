@@ -19,13 +19,19 @@ spec:
     spec:
       containers:
         - name: cluster-utils-api
-          image: donkeyx/cluster-utils-api:latest
-          imagePullPolicy: Always
+          # GHCR primary (Hub still works as mirror). Version tag → default pull IfNotPresent.
+          # :latest still forces Always in kube even without imagePullPolicy.
+          image: ghcr.io/donkeyx/cluster-utils-api:2.5.0
+          # Alternative: docker.io/donkeyx/cluster-utils-api:2.5.0
           ports:
             - name: http
               containerPort: 8080
-          # Short timeouts so LIVE/READY/STARTUP delaySeconds are easy to trip.
-          # startup runs until first success, then kube moves on to live+ready.
+          # Probes — close to kube defaults; short timeout so app delaySeconds demos work.
+          # Defaults if omitted: periodSeconds=10, timeoutSeconds=1, successThreshold=1,
+          # failureThreshold=3, initialDelaySeconds=0.
+          #
+          # startup: only until first success, then live+ready take over.
+          #   period 2 × failureThreshold 30 ≈ 60s max cold-start window.
           startupProbe:
             httpGet:
               path: /startupz
@@ -33,6 +39,8 @@ spec:
             periodSeconds: 2
             timeoutSeconds: 1
             failureThreshold: 30
+            successThreshold: 1
+          # liveness: restart if process is wedged (defaults are fine for this app)
           livenessProbe:
             httpGet:
               path: /livez
@@ -40,13 +48,16 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 1
             failureThreshold: 3
+            successThreshold: 1
+          # readiness: leave Service endpoints if not ready (~30s of fails with defaults)
           readinessProbe:
             httpGet:
               path: /readyz
               port: http
-            periodSeconds: 5
+            periodSeconds: 10
             timeoutSeconds: 1
-            failureThreshold: 2
+            failureThreshold: 3
+            successThreshold: 1
           env:
             - name: PORT
               value: "8080"
@@ -89,13 +100,15 @@ spec:
             # include kube probe paths in traces (off by default — noisy)
             # - name: OTEL_TRACE_PROBES
             #   value: "true"
+          # Sized from podman run of :2.5.0 (cgroup ~15–16Mi, process_resident ~40–43Mi,
+          # CPU ~0.1–1% under light load). requests ≈ 90% of process RSS; limits headroom.
           resources:
             requests:
-              cpu: "0.1"
-              memory: "50Mi"
+              cpu: "10m"
+              memory: "40Mi"
             limits:
-              cpu: "0.5"
-              memory: 100Mi
+              cpu: "100m"
+              memory: "80Mi"
 
 ---
 apiVersion: v1
