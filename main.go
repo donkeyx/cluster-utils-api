@@ -1,12 +1,11 @@
 // @title Cluster Util API
 // @version 2.0
-// @description This is a util api which lots of endpoints making it easy to test routing/ingress/egress
-// @host localhost:8080
+// @description Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster. Swagger "Try it out" uses the host you opened the UI on (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize with Bearer token from logs or AUTH_TOKEN.
 // @BasePath /
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Type "Bearer" followed by a space and the token from the app logs on startup.
+// @description Paste: Bearer <token>  (token from container logs, or AUTH_TOKEN env). Example: Bearer dev
 
 package main
 
@@ -16,20 +15,29 @@ import (
 	"os"
 	"strconv"
 
-	"cu-api/middleware"
-	"cu-api/routes"
+	"github.com/donkeyx/cluster-utils-api/handlers"
+	"github.com/donkeyx/cluster-utils-api/middleware"
+	"github.com/donkeyx/cluster-utils-api/routes"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
+// Set via -ldflags at build time (see Makefile).
+var (
+	Version = "dev"
+	GitHash = "unknown"
+)
+
 var securityToken string
 
 func main() {
-
 	logger := setupLogger()
 	defer logger.Sync()
+
+	handlers.SetBuildInfo(Version, GitHash)
+	handlers.InitProbesFromEnv()
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -38,12 +46,28 @@ func main() {
 
 	port := getEnvOrDefault("PORT", 8080)
 
-	securityToken = generateRandomToken(32)
+	// Optional fixed token for automated tests; otherwise random each start.
+	if t := os.Getenv("AUTH_TOKEN"); t != "" {
+		securityToken = t
+	} else {
+		securityToken = generateRandomToken(32)
+	}
 
 	routes.SetupRouter(logger, securityToken, r)
-	logger.Info("App started on port:", zap.Int("port", port))
-	logger.Info("Random Security Token", zap.String("token", securityToken))
-	logger.Info("Curl Command", zap.String("command", getCurlCommand(port, securityToken)))
+	logger.Info("App started",
+		zap.Int("port", port),
+		zap.String("version", Version),
+		zap.String("gitHash", GitHash),
+	)
+	// Greppable startup lines so people can find the bearer for /a/* endpoints.
+	logger.Info("auth token for /a/* endpoints (Authorization: Bearer <token>)",
+		zap.String("token", securityToken),
+		zap.String("header", "Authorization: Bearer "+securityToken),
+	)
+	logger.Info("example curl with auth",
+		zap.String("env", getCurlCommand(port, securityToken)),
+		zap.String("probes", fmt.Sprintf("curl -sS -H 'Authorization: Bearer %s' http://localhost:%d/a/control/probes | jq", securityToken, port)),
+	)
 
 	r.Run(fmt.Sprintf(":%d", port))
 }
@@ -58,27 +82,22 @@ func generateRandomToken(length int) string {
 }
 
 func getCurlCommand(port int, securityToken string) string {
-	variable := fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:%d/a/env | jq", securityToken, port)
-	return variable
+	return fmt.Sprintf("curl -H 'Authorization: Bearer %s' http://localhost:%d/a/env | jq", securityToken, port)
 }
 
 func setupLogger() *zap.Logger {
-
 	config := zap.NewProductionConfig()
 	config.Encoding = "json"
 	config.EncoderConfig.TimeKey = "timestamp"
-	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // Optional: Use ISO8601 time format
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	logger, err := config.Build()
 	if err != nil {
 		panic(err)
 	}
-
 	return logger
 }
 
-// getEnvOrDefault retrieves the value of the environment variable named by the key
-// or returns the default value if the environment variable is not set.
 func getEnvOrDefault(key string, defaultValue int) int {
 	if value, exists := os.LookupEnv(key); exists {
 		if intValue, err := strconv.Atoi(value); err == nil {

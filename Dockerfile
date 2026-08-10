@@ -1,12 +1,16 @@
 FROM golang:1.26 AS builder
 WORKDIR /app
-COPY . /app/
 
+# Cache module downloads when only source changes
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
 LABEL org.opencontainers.image.source=https://github.com/donkeyx/cluster-utils-api
 LABEL maintainer="David Binney <donkeysoft@gmail.com>"
 
-# Reproducible image build: use locked modules, do not go get -u
-RUN make deps build
+# Reproducible image build: locked modules only (no go get -u)
+RUN make build
 
 # no longer using musl dns moved to debian
 FROM debian:stable-slim

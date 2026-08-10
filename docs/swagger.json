@@ -1,14 +1,98 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "This is a util api which lots of endpoints making it easy to test routing/ingress/egress",
+        "description": "Drop-in HTTP util for testing probes, routing, headers, env/params and more in a cluster. Swagger \"Try it out\" uses the host you opened the UI on (or override with ?host=host:port\u0026scheme=http on /api-docs/index.html). Authorize with Bearer token from logs or AUTH_TOKEN.",
         "title": "Cluster Util API",
         "contact": {},
         "version": "2.0"
     },
-    "host": "localhost:8080",
     "basePath": "/",
     "paths": {
+        "/a/control/probes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Current live/ready/startup config + startup latch + flap phase + uptime",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Get probe control state",
+                "operationId": "getProbes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProbeSnapshot"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Partial update of live/ready/startup. resetStartupLatch re-runs cold start without restarting the process.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Update probe control state",
+                "operationId": "putProbes",
+                "parameters": [
+                    {
+                        "description": "probe update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProbeUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProbeSnapshot"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/a/env": {
             "get": {
                 "security": [
@@ -16,7 +100,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get the env variables available to the api. This is behind auth under /a/",
+                "description": "Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/",
                 "produces": [
                     "application/json"
                 ],
@@ -54,9 +138,173 @@
                 }
             }
         },
+        "/a/proxy": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy / hop to another service (auth)",
+                "operationId": "proxy",
+                "parameters": [
+                    {
+                        "description": "proxy request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProxyRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "absolute url (GET form)",
+                        "name": "url",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "HTTP method for GET form (default GET)",
+                        "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "Bearer",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Auth required. North→south hits this pod; this pod calls url east-west. Default JSON wrap includes upstream status, headers, and body. Open proxy would be SSRF — keep behind bearer.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy / hop to another service (auth)",
+                "operationId": "proxy",
+                "parameters": [
+                    {
+                        "description": "proxy request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProxyRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "absolute url (GET form)",
+                        "name": "url",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "HTTP method for GET form (default GET)",
+                        "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "Bearer",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/debug": {
             "get": {
-                "description": "Get lots of info from running container headers/ips",
+                "description": "Hostname, client ip, headers, uri — good for routing tests",
                 "produces": [
                     "application/json"
                 ],
@@ -66,7 +314,137 @@
                     "200": {
                         "description": "OK",
                         "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/delay/{seconds}": {
+            "get": {
+                "description": "Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead",
+                "produces": [
+                    "text/plain"
+                ],
+                "summary": "Delay then OK",
+                "operationId": "delay",
+                "parameters": [
+                    {
+                        "type": "number",
+                        "description": "seconds to sleep",
+                        "name": "seconds",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "delayed",
+                        "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/echo": {
+            "get": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Bounce method, path, query, headers and body back as json",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Echo request",
+                "operationId": "echo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -74,7 +452,7 @@
         },
         "/headers": {
             "get": {
-                "description": "Get the headers recieved by the api",
+                "description": "Headers as seen by the app (handy behind ingress/ALB)",
                 "produces": [
                     "application/json"
                 ],
@@ -84,23 +462,61 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "string"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
             }
         },
-        "/health": {
+        "/help": {
             "get": {
-                "description": "Get the health of the api",
+                "description": "Quick map of useful routes",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Get health",
-                "operationId": "health",
+                "summary": "Help",
+                "operationId": "help",
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/livez": {
+            "get": {
+                "description": "Kube liveness. 200 = fine; 503 = restart. Modes: ok|fail|delay|flap. LIVE_* env or /a/control/probes. Aliases: /healthz /health",
+                "produces": [
+                    "text/plain"
+                ],
+                "summary": "Liveness (livez)",
+                "operationId": "livez",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "one-shot force fail with 0/false (curl only)",
+                        "name": "ok",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "unhealthy",
                         "schema": {
                             "type": "string"
                         }
@@ -108,17 +524,17 @@
                 }
             }
         },
-        "/healthz": {
+        "/metrics": {
             "get": {
-                "description": "Get the health of the api",
+                "description": "Prometheus scrape endpoint (Go + process + HTTP RED metrics)",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
-                "summary": "Get healthz",
-                "operationId": "healthz",
+                "summary": "Prometheus metrics",
+                "operationId": "metrics",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "metrics",
                         "schema": {
                             "type": "string"
                         }
@@ -128,9 +544,9 @@
         },
         "/ping": {
             "get": {
-                "description": "Get the readyness of the api",
+                "description": "Simple alive check (not a kube probe — use /livez for that)",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
                 "summary": "Get ping",
                 "operationId": "ping",
@@ -144,17 +560,31 @@
                 }
             }
         },
-        "/ready": {
+        "/readyz": {
             "get": {
-                "description": "Get the readyness of the api",
+                "description": "Kube readiness. 200 = take traffic; 503 = leave Service endpoints. Modes: ok|fail|delay|flap. Alias: /ready",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
-                "summary": "Get ready",
-                "operationId": "ready",
+                "summary": "Readiness (readyz)",
+                "operationId": "readyz",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "one-shot force fail (curl only)",
+                        "name": "ok",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "ready",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "not ready",
                         "schema": {
                             "type": "string"
                         }
@@ -162,28 +592,201 @@
                 }
             }
         },
-        "/readyz": {
+        "/startupz": {
             "get": {
-                "description": "Get the readyness of the api",
+                "description": "Cold start latch: 503 until bootDelay, then sticky 200. mode=fail never latches. mode=flap oscillates until a success latches (or forever if you only hit fail phases — use flap carefully here).",
                 "produces": [
-                    "application/json"
+                    "text/plain"
                 ],
-                "summary": "Get readyz",
-                "operationId": "readyz",
+                "summary": "Startup (startupz)",
+                "operationId": "startupz",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "started",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "starting",
                         "schema": {
                             "type": "string"
                         }
                     }
                 }
             }
+        },
+        "/status/{code}": {
+            "get": {
+                "description": "Respond with whatever http status you pass (100-599). Great for ingress/retry testing",
+                "produces": [
+                    "text/plain"
+                ],
+                "summary": "Fixed status code",
+                "operationId": "status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "HTTP status code",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status body",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/version": {
+            "get": {
+                "description": "What binary is running in this env",
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Version / build info",
+                "operationId": "version",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "handlers.ProbeConfig": {
+            "type": "object",
+            "properties": {
+                "bootDelaySeconds": {
+                    "description": "Startup only: wall-clock seconds from process start before a success is allowed.",
+                    "type": "number"
+                },
+                "delaySeconds": {
+                    "description": "sleep before answering (0–30)",
+                    "type": "number"
+                },
+                "flapEvery": {
+                    "type": "integer"
+                },
+                "flapSeconds": {
+                    "description": "Flap (mode=flap):\n  flapSeconds — wall-clock half-period: ok for N sec, fail for N sec, repeat (default 5).\n  flapEvery   — if \u003e 0, every Nth request fails instead of using the clock (handy for tests).",
+                    "type": "number"
+                },
+                "mode": {
+                    "description": "ok | fail | delay | flap",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.ProbeSnapshot": {
+            "type": "object",
+            "properties": {
+                "live": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "liveFlapPhase": {
+                    "description": "Which half of a time-based flap we are in right now (ok|fail|n/a).",
+                    "type": "string"
+                },
+                "ready": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "readyFlapPhase": {
+                    "type": "string"
+                },
+                "startup": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "startupFlapPhase": {
+                    "type": "string"
+                },
+                "startupLatched": {
+                    "type": "boolean"
+                },
+                "startupWouldPass": {
+                    "type": "boolean"
+                },
+                "uptimeSeconds": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.ProbeUpdate": {
+            "type": "object",
+            "properties": {
+                "live": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "ready": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                },
+                "resetStartupLatch": {
+                    "type": "boolean"
+                },
+                "startup": {
+                    "$ref": "#/definitions/handlers.ProbeConfig"
+                }
+            }
+        },
+        "handlers.ProxyRequest": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "body": {
+                    "description": "Optional body (string; use for JSON text, form, etc.)",
+                    "type": "string"
+                },
+                "forwardIncomingHeaders": {
+                    "description": "When true (default), copy inbound request headers onto the outbound call\n(minus hop-by-hop). Tracing headers like X-Request-Id ride along.",
+                    "type": "boolean"
+                },
+                "forwardSensitiveHeaders": {
+                    "description": "When true, also forward Authorization / Cookie from the inbound request.\nDefault false so your bearer token for *this* api is not sent east-west by accident.",
+                    "type": "boolean"
+                },
+                "headers": {
+                    "description": "Extra headers to set/override on the outbound request",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "method": {
+                    "description": "HTTP method (default GET)",
+                    "type": "string"
+                },
+                "raw": {
+                    "description": "When true, return the upstream body as the raw HTTP response (status + headers from upstream).\nDefault false → JSON wrap with request/response/meta (includes upstream headers + body).",
+                    "type": "boolean"
+                },
+                "timeoutSeconds": {
+                    "description": "Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)",
+                    "type": "number"
+                },
+                "url": {
+                    "description": "Absolute URL to call, e.g. http://other-api:8080/debug",
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Type \"Bearer\" followed by a space and the token from the app logs on startup.",
+            "description": "Paste: Bearer \u003ctoken\u003e  (token from container logs, or AUTH_TOKEN env). Example: Bearer dev",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

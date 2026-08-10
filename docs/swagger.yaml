@@ -1,15 +1,165 @@
 basePath: /
-host: localhost:8080
+definitions:
+  handlers.ProbeConfig:
+    properties:
+      bootDelaySeconds:
+        description: 'Startup only: wall-clock seconds from process start before a
+          success is allowed.'
+        type: number
+      delaySeconds:
+        description: sleep before answering (0–30)
+        type: number
+      flapEvery:
+        type: integer
+      flapSeconds:
+        description: |-
+          Flap (mode=flap):
+            flapSeconds — wall-clock half-period: ok for N sec, fail for N sec, repeat (default 5).
+            flapEvery   — if > 0, every Nth request fails instead of using the clock (handy for tests).
+        type: number
+      mode:
+        description: ok | fail | delay | flap
+        type: string
+    type: object
+  handlers.ProbeSnapshot:
+    properties:
+      live:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      liveFlapPhase:
+        description: Which half of a time-based flap we are in right now (ok|fail|n/a).
+        type: string
+      ready:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      readyFlapPhase:
+        type: string
+      startup:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      startupFlapPhase:
+        type: string
+      startupLatched:
+        type: boolean
+      startupWouldPass:
+        type: boolean
+      uptimeSeconds:
+        type: number
+    type: object
+  handlers.ProbeUpdate:
+    properties:
+      live:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      ready:
+        $ref: '#/definitions/handlers.ProbeConfig'
+      resetStartupLatch:
+        type: boolean
+      startup:
+        $ref: '#/definitions/handlers.ProbeConfig'
+    type: object
+  handlers.ProxyRequest:
+    properties:
+      body:
+        description: Optional body (string; use for JSON text, form, etc.)
+        type: string
+      forwardIncomingHeaders:
+        description: |-
+          When true (default), copy inbound request headers onto the outbound call
+          (minus hop-by-hop). Tracing headers like X-Request-Id ride along.
+        type: boolean
+      forwardSensitiveHeaders:
+        description: |-
+          When true, also forward Authorization / Cookie from the inbound request.
+          Default false so your bearer token for *this* api is not sent east-west by accident.
+        type: boolean
+      headers:
+        additionalProperties:
+          type: string
+        description: Extra headers to set/override on the outbound request
+        type: object
+      method:
+        description: HTTP method (default GET)
+        type: string
+      raw:
+        description: |-
+          When true, return the upstream body as the raw HTTP response (status + headers from upstream).
+          Default false → JSON wrap with request/response/meta (includes upstream headers + body).
+        type: boolean
+      timeoutSeconds:
+        description: Timeout for the outbound call (default 10; capped by MAX_DELAY_SECONDS)
+        type: number
+      url:
+        description: Absolute URL to call, e.g. http://other-api:8080/debug
+        type: string
+    required:
+    - url
+    type: object
 info:
   contact: {}
-  description: This is a util api which lots of endpoints making it easy to test routing/ingress/egress
+  description: Drop-in HTTP util for testing probes, routing, headers, env/params
+    and more in a cluster. Swagger "Try it out" uses the host you opened the UI on
+    (or override with ?host=host:port&scheme=http on /api-docs/index.html). Authorize
+    with Bearer token from logs or AUTH_TOKEN.
   title: Cluster Util API
   version: "2.0"
 paths:
+  /a/control/probes:
+    get:
+      description: Current live/ready/startup config + startup latch + flap phase
+        + uptime
+      operationId: getProbes
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ProbeSnapshot'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get probe control state
+    put:
+      consumes:
+      - application/json
+      description: Partial update of live/ready/startup. resetStartupLatch re-runs
+        cold start without restarting the process.
+      operationId: putProbes
+      parameters:
+      - description: probe update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ProbeUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ProbeSnapshot'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update probe control state
   /a/env:
     get:
-      description: Get the env variables available to the api. This is behind auth
-        under /a/
+      description: Env dump so you can check secrets/configmaps/task params actually
+        landed. Behind auth under /a/
       operationId: env
       parameters:
       - default: Bearer
@@ -36,9 +186,122 @@ paths:
       security:
       - BearerAuth: []
       summary: Get environment variables
+  /a/proxy:
+    get:
+      consumes:
+      - application/json
+      description: Auth required. North→south hits this pod; this pod calls url east-west.
+        Default JSON wrap includes upstream status, headers, and body. Open proxy
+        would be SSRF — keep behind bearer.
+      operationId: proxy
+      parameters:
+      - description: proxy request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ProxyRequest'
+      - description: absolute url (GET form)
+        in: query
+        name: url
+        type: string
+      - description: HTTP method for GET form (default GET)
+        in: query
+        name: method
+        type: string
+      - default: Bearer
+        description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Proxy / hop to another service (auth)
+    post:
+      consumes:
+      - application/json
+      description: Auth required. North→south hits this pod; this pod calls url east-west.
+        Default JSON wrap includes upstream status, headers, and body. Open proxy
+        would be SSRF — keep behind bearer.
+      operationId: proxy
+      parameters:
+      - description: proxy request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ProxyRequest'
+      - description: absolute url (GET form)
+        in: query
+        name: url
+        type: string
+      - description: HTTP method for GET form (default GET)
+        in: query
+        name: method
+        type: string
+      - default: Bearer
+        description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Proxy / hop to another service (auth)
   /debug:
     get:
-      description: Get lots of info from running container headers/ips
+      description: Hostname, client ip, headers, uri — good for routing tests
       operationId: debug
       produces:
       - application/json
@@ -46,11 +309,103 @@ paths:
         "200":
           description: OK
           schema:
-            type: string
+            additionalProperties: true
+            type: object
       summary: Debug
+  /delay/{seconds}:
+    get:
+      description: Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default
+        120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds
+        instead
+      operationId: delay
+      parameters:
+      - description: seconds to sleep
+        in: path
+        name: seconds
+        required: true
+        type: number
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: delayed
+          schema:
+            type: string
+      summary: Delay then OK
+  /echo:
+    delete:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
+    get:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
+    patch:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
+    post:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
+    put:
+      consumes:
+      - text/plain
+      description: Bounce method, path, query, headers and body back as json
+      operationId: echo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Echo request
   /headers:
     get:
-      description: Get the headers recieved by the api
+      description: Headers as seen by the app (handy behind ingress/ALB)
       operationId: headers
       produces:
       - application/json
@@ -58,72 +413,147 @@ paths:
         "200":
           description: OK
           schema:
-            type: string
+            additionalProperties:
+              type: string
+            type: object
       summary: Get headers
-  /health:
+  /help:
     get:
-      description: Get the health of the api
-      operationId: health
+      description: Quick map of useful routes
+      operationId: help
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: string
-      summary: Get health
-  /healthz:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Help
+  /livez:
     get:
-      description: Get the health of the api
-      operationId: healthz
+      description: 'Kube liveness. 200 = fine; 503 = restart. Modes: ok|fail|delay|flap.
+        LIVE_* env or /a/control/probes. Aliases: /healthz /health'
+      operationId: livez
+      parameters:
+      - description: one-shot force fail with 0/false (curl only)
+        in: query
+        name: ok
+        type: string
       produces:
-      - application/json
+      - text/plain
       responses:
         "200":
-          description: OK
+          description: ok
           schema:
             type: string
-      summary: Get healthz
+        "503":
+          description: unhealthy
+          schema:
+            type: string
+      summary: Liveness (livez)
+  /metrics:
+    get:
+      description: Prometheus scrape endpoint (Go + process + HTTP RED metrics)
+      operationId: metrics
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: metrics
+          schema:
+            type: string
+      summary: Prometheus metrics
   /ping:
     get:
-      description: Get the readyness of the api
+      description: Simple alive check (not a kube probe — use /livez for that)
       operationId: ping
       produces:
-      - application/json
+      - text/plain
       responses:
         "200":
           description: PONG
           schema:
             type: string
       summary: Get ping
-  /ready:
-    get:
-      description: Get the readyness of the api
-      operationId: ready
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: string
-      summary: Get ready
   /readyz:
     get:
-      description: Get the readyness of the api
+      description: 'Kube readiness. 200 = take traffic; 503 = leave Service endpoints.
+        Modes: ok|fail|delay|flap. Alias: /ready'
       operationId: readyz
+      parameters:
+      - description: one-shot force fail (curl only)
+        in: query
+        name: ok
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: ready
+          schema:
+            type: string
+        "503":
+          description: not ready
+          schema:
+            type: string
+      summary: Readiness (readyz)
+  /startupz:
+    get:
+      description: 'Cold start latch: 503 until bootDelay, then sticky 200. mode=fail
+        never latches. mode=flap oscillates until a success latches (or forever if
+        you only hit fail phases — use flap carefully here).'
+      operationId: startupz
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: started
+          schema:
+            type: string
+        "503":
+          description: starting
+          schema:
+            type: string
+      summary: Startup (startupz)
+  /status/{code}:
+    get:
+      description: Respond with whatever http status you pass (100-599). Great for
+        ingress/retry testing
+      operationId: status
+      parameters:
+      - description: HTTP status code
+        in: path
+        name: code
+        required: true
+        type: integer
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: status body
+          schema:
+            type: string
+      summary: Fixed status code
+  /version:
+    get:
+      description: What binary is running in this env
+      operationId: version
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: string
-      summary: Get readyz
+            additionalProperties:
+              type: string
+            type: object
+      summary: Version / build info
 securityDefinitions:
   BearerAuth:
-    description: Type "Bearer" followed by a space and the token from the app logs
-      on startup.
+    description: 'Paste: Bearer <token>  (token from container logs, or AUTH_TOKEN
+      env). Example: Bearer dev'
     in: header
     name: Authorization
     type: apiKey

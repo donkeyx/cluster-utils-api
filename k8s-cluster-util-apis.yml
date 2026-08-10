@@ -21,20 +21,62 @@ spec:
         - name: cluster-utils-api
           image: donkeyx/cluster-utils-api:latest
           imagePullPolicy: Always
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8080
-            periodSeconds: 10
+          ports:
+            - name: http
+              containerPort: 8080
+          # Short timeouts so LIVE/READY/STARTUP delaySeconds are easy to trip.
+          # startup runs until first success, then kube moves on to live+ready.
           startupProbe:
             httpGet:
-              path: /healthz
-              port: 8080
+              path: /startupz
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 1
             failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
             periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 2
           env:
             - name: PORT
               value: "8080"
+            # --- probe demos (uncomment what you want to break) ---
+            # cold start: stay "starting" for 15s then latch
+            # - name: STARTUP_BOOT_DELAY
+            #   value: "15"
+            # fail readiness (pod stays up, leaves Service endpoints)
+            # - name: READY_MODE
+            #   value: "fail"
+            # flap readiness (in/out of endpoints)
+            # - name: READY_MODE
+            #   value: "flap"
+            # - name: READY_FLAP_SECONDS
+            #   value: "5"
+            # slow readiness → probe timeout (timeoutSeconds: 1)
+            # - name: READY_MODE
+            #   value: "delay"
+            # - name: READY_DELAY
+            #   value: "3"
+            # fail liveness → restarts
+            # - name: LIVE_MODE
+            #   value: "fail"
+            # flap liveness (restart thrash — careful)
+            # - name: LIVE_MODE
+            #   value: "flap"
+            # - name: LIVE_FLAP_SECONDS
+            #   value: "10"
+            # - name: AUTH_TOKEN
+            #   value: "fixed-token-for-tests"
           resources:
             requests:
               cpu: "0.1"
@@ -48,10 +90,14 @@ apiVersion: v1
 kind: Service
 metadata:
   name: cluster-utils-api-svc
+  labels:
+    app: cluster-utils
+    type: api
 spec:
   selector:
     app: cluster-utils
     type: api
   ports:
-    - port: 8080
-      targetPort: 8080
+    - name: http
+      port: 8080
+      targetPort: http

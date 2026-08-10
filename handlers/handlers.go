@@ -1,139 +1,102 @@
 package handlers
 
 import (
-	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Build info injected from main (ldflags).
 var (
-	requestsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests.",
-		},
-		[]string{"method", "path", "status"},
-	)
+	AppVersion = "dev"
+	AppGitHash = "unknown"
 )
 
-func init() {
-	prometheus.MustRegister(requestsTotal)
-}
-
-func PrometheusMetricsHandler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		handler := promhttp.Handler()
-		handler.ServeHTTP(c.Writer, c.Request)
+// SetBuildInfo lets main push version/git hash from ldflags.
+func SetBuildInfo(version, gitHash string) {
+	if version != "" {
+		AppVersion = version
+	}
+	if gitHash != "" {
+		AppGitHash = gitHash
 	}
 }
 
-// @Summary Get healthz
-// @Description Get the health of the api
-// @ID healthz
+// @Summary Help
+// @Description Quick map of useful routes
+// @ID help
 // @Produce json
-// @Success 200 {string} string "OK"
-// @Router /healthz [get]
-// HealthHandler handles GET requests to /health endpoint and returns a 200 status code with "OK" message.
-func HealthzHandler(c *gin.Context) {
-	requestsTotal.WithLabelValues("GET", "/healthz", "200").Inc()
-	HealthHandler(c)
-}
-
-// HelpHandler handles GET requests to /help endpoint and returns a list of available routes.
+// @Success 200 {object} map[string]string
+// @Router /help [get]
 func HelpHandler(c *gin.Context) {
-	routes := make(map[string]string)
-	routes["/healthz"] = "GET"
-	routes["/health"] = "GET"
-	routes["/readyz"] = "GET"
-	routes["/ready"] = "GET"
-	routes["/ping"] = "GET"
-	routes["/headers"] = "GET"
-	routes["/a/env"] = "GET"
-	routes["/debug"] = "GET"
-	routes["/"] = "This can be used to redirect to the swagger docs for more details"
-
-	c.JSON(http.StatusOK, routes)
+	c.JSON(http.StatusOK, map[string]string{
+		"/":                    "redirect to swagger docs",
+		"/api-docs/*":          "swagger ui",
+		"/help":                "GET this list",
+		"/version":             "GET build version / git hash",
+		"/livez|/healthz|/health": "GET liveness (LIVE_MODE / LIVE_DELAY)",
+		"/readyz|/ready":       "GET readiness (READY_MODE / READY_DELAY)",
+		"/startupz|/startup":      "GET startup latch (STARTUP_* / boot delay)",
+		"/ping":                   "GET PONG",
+		"/headers":                "GET request headers",
+		"/debug":                  "GET hostname / ip / headers / uri",
+		"/metrics":                "GET prometheus metrics",
+		"/status/:code":           "GET respond with that http status",
+		"/delay/:seconds":         "GET sleep then 200 (MAX_DELAY_SECONDS cap)",
+		"/echo":                   "GET/POST echo method, headers, query, body",
+		"/a/env":                  "GET env vars (bearer auth)",
+		"/a/control/probes":       "GET/PUT probe state (bearer auth)",
+		"/a/proxy":                "GET/POST east-west hop (bearer auth; SSRF-sensitive)",
+	})
 }
 
-// @Summary Get health
-// @Description Get the health of the api
-// @ID health
+// @Summary Version / build info
+// @Description What binary is running in this env
+// @ID version
 // @Produce json
-// @Success 200 {string} string "OK"
-// @Router /health [get]
-// HealthHandler handles GET requests to /health endpoint and returns a 200 status code with "OK" message.
-func HealthHandler(c *gin.Context) {
-	requestsTotal.WithLabelValues("GET", "/health", "200").Inc()
-	c.String(http.StatusOK, "OK")
-}
-
-// @Summary Get readyz
-// @Description Get the readyness of the api
-// @ID readyz
-// @Produce json
-// @Success 200 {string} string "OK"
-// @Router /readyz [get]
-func ReadyzHandler(c *gin.Context) {
-	ReadyHandler(c)
-}
-
-// @Summary Get ready
-// @Description Get the readyness of the api
-// @ID ready
-// @Produce json
-// @Success 200 {string} string "OK"
-// @Router /ready [get]
-func ReadyHandler(c *gin.Context) {
-	isReady := true // not sure what i will do here?
-
-	if isReady {
-		c.String(http.StatusOK, "Ready")
-	} else {
-		c.String(http.StatusServiceUnavailable, "Not Ready")
-	}
+// @Success 200 {object} map[string]string
+// @Router /version [get]
+func VersionHandler(c *gin.Context) {
+	hostname, _ := os.Hostname()
+	c.JSON(http.StatusOK, gin.H{
+		"version":  AppVersion,
+		"gitHash":  AppGitHash,
+		"hostname": hostname,
+	})
 }
 
 // @Summary Get ping
-// @Description Get the readyness of the api
+// @Description Simple alive check (not a kube probe — use /livez for that)
 // @ID ping
-// @Produce json
+// @Produce plain
 // @Success 200 {string} string "PONG"
 // @Router /ping [get]
-// PingHandler handles the ping endpoint and returns a "PONG" response.
 func PingHandler(c *gin.Context) {
 	c.String(http.StatusOK, "PONG")
 }
 
 // @Summary Get headers
-// @Description Get the headers recieved by the api
+// @Description Headers as seen by the app (handy behind ingress/ALB)
 // @ID headers
 // @Produce json
-// @Success 200 {string} string "OK"
+// @Success 200 {object} map[string]string
 // @Router /headers [get]
 func HeadersHandler(c *gin.Context) {
 	headers := make(map[string]string)
 	for key, values := range c.Request.Header {
 		headers[key] = values[0]
 	}
-
-	// Convert headers to JSON
-	headersJSON, err := json.Marshal(headers)
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Error converting headers to JSON")
-		return
-	}
-
-	c.Data(http.StatusOK, "application/json", headersJSON)
+	c.JSON(http.StatusOK, headers)
 }
 
 // @Summary Get environment variables
-// @Description Get the env variables available to the api. This is behind auth under /a/
+// @Description Env dump so you can check secrets/configmaps/task params actually landed. Behind auth under /a/
 // @ID env
 // @Produce json
 // @Security BearerAuth
@@ -142,32 +105,87 @@ func HeadersHandler(c *gin.Context) {
 // @Router /a/env [get]
 // @Param Authorization header string true "Bearer token from app logs" default(Bearer )
 func EnvHandler(c *gin.Context) {
-	envVariables, _ := json.Marshal(GetEnvironmentVariables())
-	c.Data(http.StatusOK, "application/json", envVariables)
+	c.JSON(http.StatusOK, GetEnvironmentVariables())
 }
 
 // @Summary Debug
-// @Description Get lots of info from running container headers/ips
+// @Description Hostname, client ip, headers, uri — good for routing tests
 // @ID debug
 // @Produce json
-// @Success 200 {string} string "OK"
+// @Success 200 {object} map[string]interface{}
 // @Router /debug [get]
 func DebugHandler(c *gin.Context) {
-
 	hostname, _ := os.Hostname()
-	sourceIP := getClientIP(c.Request)
-	headers := c.Request.Header
-
-	debugInfo := gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"Hostname":   hostname,
-		"SourceIP":   sourceIP,
-		"UserAgent":  headers.Get("User-Agent"),
-		"Headers":    headers,
+		"SourceIP":   getClientIP(c.Request),
+		"UserAgent":  c.Request.Header.Get("User-Agent"),
+		"Headers":    c.Request.Header,
 		"RequestURI": c.Request.RequestURI,
-	}
+		"Method":     c.Request.Method,
+	})
+}
 
-	// Return the debug information in the response
-	c.JSON(http.StatusOK, debugInfo)
+// @Summary Fixed status code
+// @Description Respond with whatever http status you pass (100-599). Great for ingress/retry testing
+// @ID status
+// @Produce plain
+// @Param code path int true "HTTP status code"
+// @Success 200 {string} string "status body"
+// @Router /status/{code} [get]
+func StatusHandler(c *gin.Context) {
+	code, err := strconv.Atoi(c.Param("code"))
+	if err != nil || code < 100 || code > 599 {
+		c.String(http.StatusBadRequest, "code must be an int between 100 and 599")
+		return
+	}
+	c.String(code, "status=%d", code)
+}
+
+// @Summary Delay then OK
+// @Description Sleep N seconds then return 200. Cap is MAX_DELAY_SECONDS env (default 120, hard max 600). For probe timeouts prefer LIVE/READY/STARTUP delaySeconds instead
+// @ID delay
+// @Produce plain
+// @Param seconds path number true "seconds to sleep"
+// @Success 200 {string} string "delayed"
+// @Router /delay/{seconds} [get]
+func DelayHandler(c *gin.Context) {
+	raw := c.Param("seconds")
+	secs, err := strconv.ParseFloat(raw, 64)
+	if err != nil || secs < 0 {
+		c.String(http.StatusBadRequest, "seconds must be a number >= 0")
+		return
+	}
+	requested := secs
+	secs = clampDelay(secs)
+	time.Sleep(time.Duration(secs * float64(time.Second)))
+	c.String(http.StatusOK, "delayed=%.3fs requested=%.3fs max=%.0fs", secs, requested, maxDelaySeconds())
+}
+
+// @Summary Echo request
+// @Description Bounce method, path, query, headers and body back as json
+// @ID echo
+// @Accept plain
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /echo [get]
+// @Router /echo [post]
+// @Router /echo [put]
+// @Router /echo [patch]
+// @Router /echo [delete]
+func EchoHandler(c *gin.Context) {
+	body, _ := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20)) // 1MB cap
+	headers := make(map[string][]string, len(c.Request.Header))
+	for k, v := range c.Request.Header {
+		headers[k] = v
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"method":  c.Request.Method,
+		"path":    c.Request.URL.Path,
+		"query":   c.Request.URL.Query(),
+		"headers": headers,
+		"body":    string(body),
+	})
 }
 
 // GetEnvironmentVariables returns a map of all environment variables
@@ -182,16 +200,21 @@ func GetEnvironmentVariables() map[string]string {
 	return envVariables
 }
 
-// getClientIP extracts the client's IP address from the request.
-func getClientIP(r *http.Request) string {
-	xForwardedFor := r.Header.Get("X-Forwarded-For")
-	if xForwardedFor != "" {
-		return xForwardedFor
+func isTruthy(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "0", "false", "no", "off", "unhealthy", "notready", "not-ready", "not ready":
+		return false
+	default:
+		return true
 	}
+}
 
+func getClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return strings.TrimSpace(strings.Split(xff, ",")[0])
+	}
 	if ip, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		return ip
 	}
-
-	return ""
+	return r.RemoteAddr
 }
