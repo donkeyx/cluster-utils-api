@@ -1,4 +1,4 @@
-FROM golang:1.26 AS builder
+FROM golang:1.26.10 AS builder
 WORKDIR /app
 
 # Cache module downloads when only source changes

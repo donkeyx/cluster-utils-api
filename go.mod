@@ -2,6 +2,8 @@ module github.com/donkeyx/cluster-utils-api
 
 go 1.26
 
+toolchain go1.26.10
+
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/prometheus/client_golang v1.24.1

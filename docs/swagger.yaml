@@ -138,7 +138,7 @@ info:
     • Docs / source: https://github.com/donkeyx/cluster-utils-api
     • Pair (shell toolkit): https://github.com/donkeyx/cluster-utils
   title: Cluster Utils API
-  version: 2.5.2
+  version: 2.5.3
 paths:
   /a/control/probes:
     get:
