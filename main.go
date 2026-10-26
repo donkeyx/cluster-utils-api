@@ -1,5 +1,5 @@
 // @title Cluster Utils API
-// @version 2.5.2
+// @version 2.5.3
 // @description HTTP sidekick for cluster-utils — drop into a namespace and poke probes, ingress headers, env, and east-west hops.
 // @description
 // @description • Authorize (top-right lock): Bearer &lt;token&gt;  e.g. local podman → Bearer dev
